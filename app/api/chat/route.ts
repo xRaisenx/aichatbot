@@ -5,6 +5,7 @@ import { generateEmbeddings } from '../../../lib/gemini'; // Import for query em
 import { Redis } from "@upstash/redis"; // Keep for Ratelimit if it needs its own instance type
 import { Index, QueryResult } from '@upstash/vector';
 import { NextRequest, NextResponse } from 'next/server';
+import { setTimeout } from 'timers/promises'; // Import for async timeout
 import { getEphemeralUserChatHistory, setEphemeralUserChatHistory } from '../../../lib/redis'; // Chat history functions using node-redis client
 
 /**
@@ -38,40 +39,22 @@ const chatHistoryCache = new Map<string, Array<{ role: 'user' | 'bot' | 'model';
 
 /** Upstash Vector client instance. Initialized using environment variables. */
 let vectorIndex: Index<ProductVectorMetadata> | null = null; // Explicitly type with ProductVectorMetadata
-// Attempt to initialize Vector client, prioritizing BM25_4 env vars, falling back to BM25
+// const VECTOR_TIMEOUT_MS = 15000; // Timeout configuration removed as it's not directly supported here
+
+// Attempt to initialize Vector client using UPSTASH_VECTOR_URL and UPSTASH_VECTOR_TOKEN
 if (process.env.UPSTASH_VECTOR_URL && process.env.UPSTASH_VECTOR_TOKEN) {
     try {
         vectorIndex = new Index<ProductVectorMetadata>({ // Add type argument
-            url: process.env.UPSTASH_VECTOR_URL,
-            token: process.env.UPSTASH_VECTOR_TOKEN,
+            url: (process.env.UPSTASH_VECTOR_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+            token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+            // requestTimeout: VECTOR_TIMEOUT_MS, // Removed: Not a valid property in IndexConfig
         });
-        console.log('Upstash Vector client initialized with UPSTASH_VECTOR_URL.');
+        console.log(`Upstash Vector client initialized with UPSTASH_VECTOR_URL.`);
     } catch (error) {
         console.error('Failed to initialize Vector with UPSTASH_VECTOR_URL:', error);
-        if (process.env.VECTOR_URL_BM25 && process.env.VECTOR_TOKEN_BM25) {
-            try {
-                vectorIndex = new Index<ProductVectorMetadata>({ // Add type argument
-                    url: process.env.VECTOR_URL_BM25,
-                    token: process.env.VECTOR_TOKEN_BM25,
-                });
-                console.log('Upstash Vector client initialized with VECTOR_URL_BM25.');
-            } catch (fallbackError) {
-                console.error('Failed to initialize Vector with VECTOR_URL_BM25:', fallbackError);
-            }
-        }
-    }
-} else if (process.env.VECTOR_URL_BM25 && process.env.VECTOR_TOKEN_BM25) {
-    try {
-        vectorIndex = new Index<ProductVectorMetadata>({ // Add type argument
-            url: process.env.VECTOR_URL_BM25,
-            token: process.env.VECTOR_TOKEN_BM25,
-        });
-        console.log('Upstash Vector client initialized with VECTOR_URL_BM25.');
-    } catch (error) {
-        console.error('Failed to initialize Vector with VECTOR_URL_BM25:', error);
     }
 } else {
-    console.error('Missing Upstash Vector credentials.');
+    console.error('Missing Upstash Vector credentials (UPSTASH_VECTOR_URL or UPSTASH_VECTOR_TOKEN).');
 }
 
 /** Google Generative AI client instance. */
@@ -356,6 +339,7 @@ export async function POST(req: NextRequest) {
             vendor?: string;
             attributes?: string[];
             product_tags?: string;
+            is_product_query: boolean; // Added for explicit intent
         } = {
             ai_understanding: 'Unable to interpret query intent.',
             search_keywords: '',
@@ -365,29 +349,49 @@ export async function POST(req: NextRequest) {
             price_filter: null,
             sort_by_price: false,
             vendor: '',
+            is_product_query: false, // Default to false
         };
+
+        // --- Timeout Wrapper for Promises ---
+        const GEMINI_TIMEOUT_MS = 10000; // 10 seconds timeout for Gemini call
+        const timeoutSignal = Symbol('timeout'); // Unique symbol for timeout rejection
+
+        async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+            const timeoutPromise = setTimeout(ms, timeoutSignal).then(() => {
+                throw new Error(`Operation timed out after ${ms}ms`);
+            });
+            return Promise.race([promise, timeoutPromise]) as Promise<T>;
+        }
 
         if (geminiModel) {
             console.log('Calling Gemini for understanding...');
             const understandingPrompt = `Analyze the user query and chat history for a beauty store. Provide:
             1. "ai_understanding": A brief summary of the user's intent.
-            2. "search_keywords": Space-separated keywords for product search (e.g., "lipstick" for "cheapest lipsticks").
-            3. "advice": A conversational response or advice, including a routine if a combo or set is requested.
-            4. "requested_product_count": Number of products requested. Set to 4 for "top 4 cheapest", length of product_types for combos, 10 for generic lists, or 1 otherwise.
-            5. "product_types": Array of product types (e.g., ["lipstick"] for "cheapest lipsticks", ["cleanser", "moisturizer"] for combos). Use normalized types (e.g., "personal care" instead of "Health & Beauty > Personal Care").
-            6. "usage_instructions": Detailed instructions for using products (e.g., "Apply lipstick evenly to lips").
+            2. "search_keywords": Space-separated keywords for product search. If not a product query OR if it's a simple greeting, return empty string.
+            3. "advice": A conversational response. 
+               - If "is_product_query" is true, provide advice related to the products or query.
+               - If "is_product_query" is false AND the User Query is a simple greeting (e.g., "Hello", "Hi"), respond with a friendly, concise greeting (e.g., "Hello! How can I help you today?").
+               - Otherwise, provide general conversational advice or answer the question.
+            4. "requested_product_count": Number of products requested. Set to 4 for "top 4 cheapest", length of product_types for combos, 10 for generic lists, or 1 otherwise. If not a product query or if it's a simple greeting, set to 0.
+            5. "product_types": Array of product types (e.g., ["lipstick"], ["cleanser", "moisturizer"]). Use normalized types. If not a product query or if it's a simple greeting, return empty array.
+            6. "usage_instructions": Detailed instructions for using products. If not a product query or if it's a simple greeting, return empty string or a very brief, relevant non-product tip if appropriate.
             7. "price_filter": Maximum price in USD (e.g., 20 for "under $20") or null if unspecified.
-            8. "sort_by_price": Boolean, true if query includes "cheapest" (e.g., "top 4 cheapest lipsticks").
-            9. "vendor": Brand name if specified (e.g., "Enjoy" for "Enjoy lipsticks"), or empty string if none.
-            10. "attributes": An array of product attributes identified in the query (e.g., ["vegan", "cruelty-free", "under $20"]).
+            8. "sort_by_price": Boolean, true if query includes "cheapest".
+            9. "vendor": Brand name if specified, or empty string if none.
+            10. "attributes": An array of product attributes (e.g., ["vegan", "cruelty-free"]).
+            11. "is_product_query": Boolean. True if the LATEST user query explicitly asks for product suggestions, recommendations, or to find/show products. False for general questions, advice not directly tied to finding a specific product, or conversational follow-ups/greetings that don't ask for more products.
             Format the output as a JSON string.
 
             User Query: "${trimmedQuery}"
-            Product Tags: ${geminiResult.product_tags || 'No tags found'}
-            Chat History: ${JSON.stringify(geminiHistory.slice(-4))}`;
+            Chat History: ${JSON.stringify(geminiHistory.slice(-6))}`;
+            // Product Tags: ${geminiResult.product_tags || 'No tags found'} // Removed as product_tags are not available at this stage
 
             try {
-                const result = await geminiModel.generateContent(understandingPrompt);
+                console.log(`Attempting Gemini call with ${GEMINI_TIMEOUT_MS}ms timeout...`);
+                const geminiPromise = geminiModel.generateContent(understandingPrompt);
+                const result = await withTimeout(geminiPromise, GEMINI_TIMEOUT_MS);
+                console.log('Gemini call completed within timeout.');
+
                 const textResponse = result.response.text().trim();
                 let jsonString = textResponse;
 
@@ -412,7 +416,8 @@ export async function POST(req: NextRequest) {
                         (parsed.usage_instructions === undefined || typeof parsed.usage_instructions === 'string') &&
                         (parsed.price_filter === null || typeof parsed.price_filter === 'number') &&
                         typeof parsed.sort_by_price === 'boolean' &&
-                        typeof parsed.vendor === 'string'
+                        typeof parsed.vendor === 'string' &&
+                        typeof parsed.is_product_query === 'boolean' // Added check for is_product_query
                     ) {
                         geminiResult = parsed;
                         // Adjust requested_product_count
@@ -435,8 +440,13 @@ export async function POST(req: NextRequest) {
                 } catch (parseError) {
                     console.error('Failed to parse Gemini response:', parseError, '\nRaw response:', textResponse);
                 }
-            } catch (llmError) {
-                console.error('Error calling Gemini:', llmError);
+            } catch (llmError: unknown) { // Catch any error, including timeout
+                if (llmError instanceof Error && llmError.message?.includes('timed out')) {
+                    console.error(`Gemini call timed out after ${GEMINI_TIMEOUT_MS}ms.`);
+                    // Keep default geminiResult values on timeout
+                } else {
+                    console.error('Error calling Gemini:', llmError);
+                }
             }
         } else {
             console.warn('Gemini client not initialized.');
@@ -444,7 +454,7 @@ export async function POST(req: NextRequest) {
 
         // --- Stage 2: Vector Search ---
         let finalProductCards: ProductCardResponse[] = [];
-        const SIMILARITY_THRESHOLD = 0.70;
+        const SIMILARITY_THRESHOLD = 0.03;
         const requestedCount = Math.max(1, geminiResult.requested_product_count || 1);
         const topK = Math.max(requestedCount * 2, 10);
 
@@ -472,11 +482,11 @@ export async function POST(req: NextRequest) {
 
                 if (queryVector && queryVector.length === 768) {
                     console.log('Performing HYBRID search (dense vector + sparse/BM25).');
-                    // Removed 'as unknown' assertion from query payload
-                    // Removed 'data: searchText' as type expects it undefined when 'vector' is present
+                    // Restored 'data: searchText' for hybrid query and suppress potential TS error
+                    // @ts-expect-error - SDK types might conflict when providing both vector and data for hybrid query
                     results = await vectorIndex.query({ 
                         vector: queryVector,
-                        // data: searchText, // Removed based on TS error
+                        data: searchText, // Restored for hybrid search
                         topK: k,
                         includeMetadata: true,
                     }) as QueryResult<ProductVectorMetadata>[]; // Kept assertion on result
@@ -708,10 +718,22 @@ export async function POST(req: NextRequest) {
         const defaultUsageInstructions = geminiResult.usage_instructions ||
             'For skincare products: \n1. Cleanse your face with a gentle cleanser and pat dry.\n2. Apply a small amount of the product to affected areas, once or twice daily as directed.\n3. Follow with a non-comedogenic moisturizer.\n4. Use sunscreen during the day.\nFor makeup like lipstick: Apply evenly to lips, reapply as needed.\nAlways patch test new products and consult a specialist if irritation occurs.';
 
+        let finalAdvice = geminiResult.advice;
+        // const simpleGreetings = ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening", "thanks", "thank you"];
+        // const isSimpleConversationTurn = simpleGreetings.some(phrase => trimmedQuery.toLowerCase().includes(phrase)) && trimmedQuery.split(' ').length <= 3;
+
+        if (geminiResult.is_product_query === true) {
+            // Only append default instructions and search note if it's a product query
+            finalAdvice = `${geminiResult.advice || ''}\n\n${defaultUsageInstructions}${searchNote}`;
+        } else {
+            // For all non-product queries (greetings, thanks, general chat), use only AI's direct advice
+            finalAdvice = geminiResult.advice;
+        }
+
         const finalResponse: ChatApiResponse = {
             ai_understanding: geminiResult.ai_understanding,
             product_card: finalProductCards.length === 1 ? finalProductCards[0] : undefined,
-            advice: `${geminiResult.advice}\n\n${defaultUsageInstructions}${searchNote}`,
+            advice: finalAdvice.trim(), // Ensure advice is trimmed
             complementary_products: finalProductCards.length > 1 ? finalProductCards : undefined,
             history: history, // Include the updated history in the response
         };

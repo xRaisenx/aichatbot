@@ -1,4 +1,28 @@
-# @shopify/shopify-app-template-remix
+# Changelog
+
+## [Unreleased]
+
+### Added
+- Expanded the admin dashboard with pages for `/app/admin/users/page.tsx` and `/app/admin/products/page.tsx`.
+- Enhanced analytics with `/app/api/analytics/track/route.ts` for tracking user interactions and conversions.
+- Implemented a robust user isolation strategy:
+  - Granular key prefixing for Redis keys (e.g., `user:{userId}:chat_history`).
+  - Ephemeral caching (24-hour TTL) for user chat history in Redis.
+- Added rate limiting for the chat API using the `@upstash/ratelimit` library (10 requests per 10 seconds per IP).
+
+### Changed
+- Modified `app/api/sync-products/route.ts` to support hybrid Upstash Vector indexing (dense vectors + BM25 text).
+- Updated `VectorRecord` and `VectorMetadata` types and data preparation logic for hybrid search.
+- Added a 30-second request timeout to the Upstash Vector client.
+- Enhanced `app/api/chat/route.ts` to perform hybrid search (dense vector + sparse data) with fallback to sparse-only if query embedding fails.
+
+### Fixed
+- Resolved unit test issues for rate limiting logic.
+- Fixed "dense vector" errors in product sync by implementing duplicate checking before upserting.
+- Addressed fallback scenarios for embedding generation using dummy vectors when errors occur.
+
+### Removed
+- Deprecated unused Redis-related environment variables.
 
 ## 2025.03.18
 -[#998](https://github.com/Shopify/shopify-app-template-remix/pull/998) Update to Vite 6

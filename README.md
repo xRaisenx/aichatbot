@@ -4,27 +4,36 @@
 
 This project is an AI chatbot for Planet Beauty, built with Next.js and deployed on Vercel. It uses the Google Gemini API for natural language understanding and the Upstash Vector database for product search and retrieval. It also integrates with the Shopify Admin API to sync product data.
 
-## Current Status (As of May 2025)
+## Current Status (As of May 8, 2025 - Evening)
 
-The project is in a stable state:
-*   **Linting:** The codebase is clean and passes all lint checks (`npm run lint`).
-*   **Testing:** All unit tests (`npm test`) are passing. This includes tests for the product sync API (`app/api/sync-products/route.ts`) which verify its ability to prepare data for a hybrid Upstash Vector index (dense vectors + text for BM25). Chat functionality tests are also passing.
-*   **Build:** The project builds successfully for production (`npm run build`) without errors.
-*   **Chat Simulation:** The `simulate-chat.ts` script runs correctly, demonstrating functional chat interactions with the local development server.
-*   **Product Sync API (`/api/sync-products`):**
-    *   Successfully integrated real dense vector generation using Google's `models/embedding-001` via `lib/gemini.ts`. Generates 768-dimension vectors for products.
-    *   Includes fallback to dummy vectors if real embedding generation fails.
-    *   Handles "This index requires sparse vectors" errors by attempting a sparse-only upsert if a dense/hybrid upsert fails. The sparse batch correctly includes a top-level `data` field with `metadata.textForBM25`.
-    *   Reduced the number of products processed per invocation to 25 (`BATCH_SIZE_VECTOR`) to prevent serverless function timeouts. Requires multiple sequential runs for full sync.
-    *   Added a `requestTimeout: 30000` (30 seconds) to the Upstash Vector client initialization for improved resilience.
-    *   Implemented a duplicate checking mechanism: before upserting, it fetches existing records by ID (including vector and metadata) and skips items if both their vector and metadata are identical to the stored versions.
-*   **Chat API (`/api/chat`):**
-    *   Updated to perform hybrid search using both a dense query vector (generated via `generateEmbeddings`) and the raw query text (for BM25).
-    *   Falls back to sparse-only search if query embedding generation fails.
-*   **Chat Interface UI:**
-    *   The chatbox is now resizable using CSS `resize: both` and `overflow: auto`.
-    *   On desktop landscape views (min-aspect-ratio: 1/1, min-width: 768px), the chatbox height is increased to `70vh` with `min-height: 400px` and `min-width: 300px`.
-    *   The "Montserrat" font has been applied globally via `app/globals.css`.
+*   **Core Functionality & Stability:**
+    *   All verification checks (`npm run lint`, `npm run build`, `npm test`) are passing.
+    *   Linting errors in `app/api/sync-products/route.ts` (related to `@ts-expect-error`) have been resolved.
+    *   Build errors in `app/api/chat/route.ts` (related to hybrid query payload typing) have been fixed.
+    *   Unit test mocks in `test/chat.test.js` for `@google/generative-ai` embedding model have been corrected.
+*   **Product Synchronization (`/api/sync-products` & `simulate-sync.ts`):**
+    *   The product sync API (`app/api/sync-products/route.ts`) has been updated to remove the hardcoded limit of 10,000 fetched products, allowing it to attempt syncing all products from Shopify by paginating as long as a cursor is available.
+    *   The Upstash index (`UPSTASH_VECTOR_URL`) is confirmed to be configured for hybrid search (768-dim dense + sparse).
+    *   Full product synchronization is currently on hold pending verification of the complete sync process and resolution of any potential timeout or resource issues with large datasets.
+*   **Chat Functionality (`/api/chat` & `simulate-chat.ts`):**
+    *   The chat API (`app/api/chat/route.ts`) has been updated to ensure it attempts hybrid queries correctly (sending both `vector` and `data`) and connects to the same hybrid index as the sync API.
+    *   The chat simulation (`simulate-chat.ts`) connects successfully to the API.
+    *   **Key Issue (On Hold):** Despite the hybrid index configuration and API updates, the chat simulation **still fails to retrieve any specific products** from the vector index. Debugging this specific issue is paused.
+*   **Current Focus (AI Smart Interactions - Completed for this iteration):**
+    *   The primary focus was on **improving AI smart interactions**, specifically how the AI handles simple greetings and conversational turns.
+    *   **Key Changes Implemented:**
+        *   **AI Smart Interactions (`app/api/chat/route.ts`):**
+            *   Refined Gemini prompt and response logic to handle simple greetings and conversational turns more naturally, avoiding awkward product-related advice.
+            *   Added a 10-second timeout wrapper for Gemini API calls to prevent Vercel function timeouts.
+            *   Ensured Upstash Vector client initialization cleans URL/token strings.
+        *   **Product Synchronization (`app/api/sync-products/route.ts`):**
+            *   Removed the hardcoded 10,000 product fetch limit to allow for full synchronization of all products.
+            *   Ensured Upstash Vector client initialization cleans URL/token strings to prevent parsing errors.
+            *   Added a 500ms delay between batch upserts to manage load.
+            *   Refined duplicate product checking logic to correctly handle items potentially missing dense vectors from previous sparse-only fallbacks.
+        *   **Linting & Build:** Resolved all ESLint errors and ensured the project builds successfully.
+    *   These changes were verified by linting, building, and running simulations.
+    *   **Next Steps:** Monitor chat interactions and the full sync process (especially with the removed fetch limit) for stability, performance, and any further issues.
 
 ## Technologies Used
 
@@ -50,7 +59,6 @@ The `app/api/sync-products/route.ts` API fetches product data from Shopify, gene
 **Example Upstash Vector SDK Usage (Illustrative):**
 ```typescript
 import { Index } from "@upstash/vector";
-
 // Initialize the client with your actual URL and token from environment variables
 const index = new Index({
   url: process.env.UPSTASH_VECTOR_URL || "YOUR_UPSTASH_VECTOR_URL_PLACEHOLDER",
@@ -105,12 +113,8 @@ The following environment variables are required to run this project:
 *   `VERCEL_DEPLOYMENT`: Vercel deployment URL.
 *   `VERCEL_DOMAINS`: Vercel domains.
 *   `VERCEL_OIDC_TOKEN`: Vercel OIDC token.
-*   `VECTOR_URL_BM25`: Upstash Vector URL for BM25 (Used by Chat API).
-*   `VECTOR_TOKEN_BM25`: Upstash Vector token for BM25 (Used by Chat API).
-*   `UPSTASH_VECTOR_URL`: Upstash Vector URL (used by Product Sync API if BM25_4 vars aren't set). **Should point to a Hybrid Index.**
-*   `UPSTASH_VECTOR_TOKEN`: Upstash Vector token (used by Product Sync API if BM25_4 vars aren't set).
-*   `VECTOR_URL_BM25_4`: Upstash Vector URL (Primary for Chat API). **Should point to a Hybrid Index.**
-*   `VECTOR_TOKEN_BM25_4`: Upstash Vector token (Primary for Chat API).
+*   `UPSTASH_VECTOR_URL`: Upstash Vector URL. **Should point to a Hybrid Index.**
+*   `UPSTASH_VECTOR_TOKEN`: Upstash Vector token.
 *   `GEMINI_API_KEY`: Google Gemini API key.
 *   `SHOPIFY_STOREFRONT_ACCESS_TOKEN`: Shopify Storefront access token.
 *   `SHOPIFY_ADMIN_ACCESS_TOKEN`: Shopify Admin access token.

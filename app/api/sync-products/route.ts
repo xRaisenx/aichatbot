@@ -1,5 +1,5 @@
 import { AdminFetchResult, AdminShopifyProductNode, fetchAdminShopifyProducts } from '@lib/shopify-admin';
-import { IndexConfig, Index as VectorIndex } from '@upstash/vector';
+import { Index as VectorIndex } from '@upstash/vector'; // Removed IndexConfig
 import { NextResponse } from 'next/server';
 import { generateEmbeddings } from '../../../lib/gemini'; // Adjusted import path
 
@@ -26,10 +26,10 @@ type VectorRecord = {
 // Explicitly type the index with the metadata structure
 const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_URL && process.env.UPSTASH_VECTOR_TOKEN
   ? new VectorIndex<VectorMetadata>({
-    url: process.env.UPSTASH_VECTOR_URL,
-    token: process.env.UPSTASH_VECTOR_TOKEN,
-    requestTimeout: 30000, // Added request timeout of 30 seconds
-  } as IndexConfig) // Cast to IndexConfig if direct options don't match constructor
+      url: (process.env.UPSTASH_VECTOR_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''), // Clean URL
+      token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''), // Clean Token
+      // requestTimeout: 30000, // Removed: Not a valid property here
+    })
   : null;
 
 // Constants
@@ -95,20 +95,30 @@ async function upsertWithRetry(
         // If textForBM25 might be undefined on fetched existing records but present on new,
         // ensure comparison is fair or explicitly handle. For now, direct comparison.
 
-        const vectorsMatch = areVectorsEqual(newItem.vector, existingItemData.vector);
         const metadataMatches = areObjectsEqual(currentMetadataForComparison, existingMetadataForComparison);
+        // Check if the existing record actually has a vector stored
+        const existingVectorExists = existingItemData.vector !== undefined && existingItemData.vector !== null && Array.isArray(existingItemData.vector) && existingItemData.vector.length > 0;
+        // Only compare vectors if the existing one exists
+        const vectorsMatch = existingVectorExists ? areVectorsEqual(newItem.vector, existingItemData.vector) : false;
 
-        if (vectorsMatch && metadataMatches) {
-          // console.log(`Skipping duplicate product ID: ${newItem.id} as vector and metadata match.`);
-          skippedCount++;
-          continue; // Skip this item
+        if (metadataMatches && existingVectorExists && vectorsMatch) {
+            // Skip only if metadata matches AND existing vector exists AND vectors match
+            // console.log(`Skipping duplicate product ID: ${newItem.id} as metadata and existing vector match.`);
+            skippedCount++;
+            continue; // Skip this item
         } else {
-          // console.log(`Product ID: ${newItem.id} differs. Vectors match: ${vectorsMatch}, Metadata matches: ${metadataMatches}. Will upsert.`);
+             // Log why it's being upserted (metadata diff, missing vector, or vector diff)
+            // if (!metadataMatches) console.log(`Upserting ${newItem.id}: Metadata differs.`);
+            // else if (!existingVectorExists) console.log(`Upserting ${newItem.id}: Existing vector missing.`);
+            // else if (!vectorsMatch) console.log(`Upserting ${newItem.id}: Vectors differ.`);
+            trulyNewOrChangedItems.push(newItem); // Add item to be upserted
         }
+      } else {
+        // Existing item not found, definitely upsert
+        trulyNewOrChangedItems.push(newItem);
       }
-      trulyNewOrChangedItems.push(newItem);
     }
-    itemsToUpsert = trulyNewOrChangedItems;
+    itemsToUpsert = trulyNewOrChangedItems; // Update the list of items to actually upsert
 
     if (skippedCount > 0) {
       console.log(`Skipped ${skippedCount} identical items from the batch of ${batch.length}.`);
@@ -236,7 +246,8 @@ export async function GET(request: Request) {
           if (vectorUpsertBatch.length >= BATCH_SIZE_VECTOR) {
             if (vectorIndex) {
               await upsertWithRetry(vectorIndex, vectorUpsertBatch);
-              vectorUpsertBatch.length = 0;
+              vectorUpsertBatch.length = 0; // Clear the batch after upsert
+              await new Promise(resolve => setTimeout(resolve, 500)); // Add 500ms delay
             } else {
               console.warn('Vector client not initialized. Skipping upsert batch.');
               errors += vectorUpsertBatch.length;
@@ -251,11 +262,14 @@ export async function GET(request: Request) {
       }
 
       fetched += products.length;
-    } while (cursor && fetched < 25); // Significantly reduced limit to prevent timeouts
+      console.log(`Fetched ${fetched} products so far...`); // Log progress
+    } while (cursor); // Continue as long as there are more pages
 
     // Upsert any remaining vectors
     if (vectorUpsertBatch.length > 0 && vectorIndex) {
       await upsertWithRetry(vectorIndex, vectorUpsertBatch);
+      // Optional: Add a small delay even after the last batch if needed, though likely less critical here.
+      // await new Promise(resolve => setTimeout(resolve, 500)); 
     }
 
     console.log(`Sync complete. Fetched: ${fetched}, Processed: ${processed}, Errors: ${errors}`);
