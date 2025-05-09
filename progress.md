@@ -38,5 +38,10 @@
 *   [x] Ensure Linting Passes: Verified `npm run lint` completes with no errors or warnings.
 *   [x] Fix and Verify Chat Simulation: Resolved issues in `simulate-chat.ts` (environment variables, request payload, type definitions) and confirmed it runs successfully against the local dev server.
 *   [x] Verify Production Build: Ensured `npm run build` completes successfully without errors.
-*   [x] Verify All Unit Tests: Confirmed all tests pass with `npm test` after recent changes.
-*   [x] Update all relevant documentation (`README.md`, `actionable_todo.md`, `progress.md`)
+*   [ ] Verify All Unit Tests: (In progress. Significant effort made to transition Jest to ESM, update mocks, and use manual mocks. `test/shopify.test.js` is passing. `test/api/sync-products/route.test.ts` is skipped. Other test files still have failures related to mock effectiveness and ESM configuration nuances. Debugging ongoing.)
+*   [x] Update all relevant documentation (`README.md`, `actionable_todo.md`, `progress.md`, `feedback.md`): Updated to reflect current Jest debugging status and next steps.
+*   [x] Implement Sparse Search with BM25 Embeddings in `app/api/chat/route.ts`
+*   [x] Add Timeout for Vector Queries in `app/api/chat/route.ts`
+*   [x] Add Structured Logging with `pino` in `app/api/chat/route.ts`
+*   [x] Expand Unit Tests in `test/chat.test.js` (product queries, no results, fallback, general questions, edge cases)
+*   [ ] Implement Feedback Loop: (As per `ai_chat_todo.md` and `feedback.md`)

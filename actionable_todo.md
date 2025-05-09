@@ -121,10 +121,17 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
     *   Completed.
 24. [x] **Verify Production Build (High Priority, Stability):**
     *   Completed.
-25. [x] **Verify All Unit Tests (High Priority, Stability):**
-    *   Completed.
+25. [ ] **Verify All Unit Tests (Critical Priority, Stability):**
+    *   **Status:** Ongoing. Significant effort invested in transitioning Jest to ESM (`preset: 'ts-jest/presets/default-esm'`, Jest globals imports, manual mocks for `@upstash/redis` and `next/server`).
+    *   `test/shopify.test.js` is passing.
+    *   `test/api/sync-products/route.test.ts` is currently skipped.
+    *   `test/gemini.test.js`, `test/lib/redis.cache.test.js`, and `test/chat.test.js` have persistent failures related to mock effectiveness, value mismatches, and potential ESM/Jest config interactions.
+    *   **Next Steps (High Priority):**
+        *   Resolve failures in `test/gemini.test.js` (embedding mock, value mismatches).
+        *   Resolve failures in `test/lib/redis.cache.test.js` (manual mock for `@upstash/redis` interaction, spy errors).
+        *   Resolve failures in `test/chat.test.js` (ensure manual `next/server` mock is effective, fix `TypeError: Response.json is not a function`, address test timeout).
 26. [x] **Update all relevant documentation (High Priority, Maintainability):**
-    *   Completed for previous phases. `README.md` updated with hybrid search details, sync API enhancements (timeout, duplicate check, sparse fallback details), and chat UI changes. Ongoing for new changes.
+    *   `README.md`, `progress.md`, `actionable_todo.md`, `feedback.md` updated to reflect current Jest debugging status and next steps.
 27. [x] **Chat Interface UI Enhancements (High Priority, Feature):**
     *   [x] Chatbox made resizable (`resize: both`, `overflow: auto`).
     *   [x] Chatbox height on desktop landscape increased to `70vh` (with `min-height: 400px`, `min-width: 300px`).
@@ -156,8 +163,10 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
     *   Fixed lint errors in `app/api/sync-products/route.ts` (`@ts-expect-error` added).
     *   Fixed build errors in `app/api/chat/route.ts` (hybrid query payload typing).
     *   Fixed unit test mocks in `test/chat.test.js` for `@google/generative-ai`.
+    *   Updated Jest configuration to use `ts-jest` and handle ES modules. Renamed `jest.setup.js` to `jest.setup.cjs`. Fixed syntax error in `test/api/sync-products/route.test.ts`.
+    *   Expanded unit tests in `test/chat.test.js` to cover various product query scenarios, no results, fallback logic, general questions, and edge cases.
     *   All checks passed successfully.
-    *   *Note:* `npm test` still indicates incomplete mocks for Upstash Vector `fetch` in `test/api/sync-products/route.test.ts` (duplicate check logic not fully unit-tested).
+    *   *Note:* `npm test` still indicates incomplete mocks for Upstash Vector `fetch` in `test/api/sync-products/route.test.ts` (duplicate check logic not fully unit-tested). Full test run pending.
 2.  [x] **Run Sync and Chat Simulations (High Priority, Functionality):**
     *   Executed `npx tsx simulate-sync.ts` (multiple times). Product sync fetches items, but logs indicated sparse-only index initially. User confirmed index is now hybrid.
     *   Executed `npx tsx simulate-chat.ts` after ensuring chat API uses hybrid query and correct index.
@@ -195,6 +204,7 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
     *   Monitor chat logs for any remaining awkward interactions or areas where conversational flow can be further improved.
     *   Monitor sync process for stability, full completion (now that fetch limit is removed), and ensure duplicate checking works as intended over multiple runs.
     *   Continue to refine prompts based on observed interactions to enhance the AI's naturalness and helpfulness.
+    *   Implement feedback loop for continuous improvement as outlined in `ai_chat_todo.md` and `feedback.md`.
 
 ### Phase 5: Chat Interface Implementation and Final Polish (Pending AI Enhancements & Debugging)
 

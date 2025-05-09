@@ -84,6 +84,55 @@ This session focused on ensuring overall project stability and fixing the chat s
 *   **Production Build Verified:**
     *   Ran `npm run build` and confirmed it completes successfully without errors, ensuring the project is buildable for production.
 *   **All Unit Tests Verified:**
-    *   Ran `npm test` and confirmed that all 5 test suites and 18 tests pass, indicating no regressions from the recent changes.
+    *   Ran `npm test` and confirmed that all 5 test suites and 18 tests pass, indicating no regressions from the recent changes. (Note: This was before recent Jest configuration changes and test additions. Full test run pending.)
 *   **Documentation Updated:**
     *   `README.md`, `progress.md`, and `actionable_todo.md` were updated to reflect these stability improvements and fixes. This `feedback.md` file has also been updated.
+*   **AI Chat Enhancements & Jest Configuration (Current Session - May 9, 2025):**
+    *   Implemented sparse search with BM25 embeddings using `expandKeywords` function in `app/api/chat/route.ts`.
+    *   Added timeouts for Upstash Vector queries using `withTimeout` utility in `app/api/chat/route.ts`.
+    *   Integrated `pino` for structured logging in `app/api/chat/route.ts`.
+    *   Expanded unit tests in `test/chat.test.js` to cover various product query scenarios, no results, fallback logic, general questions, and edge cases.
+    *   Updated Jest configuration in `jest.config.cjs` to use `ts-jest` for TypeScript files.
+    *   Modified `package.json` to add the `--experimental-vm-modules` flag to the Jest command.
+    *   Renamed `jest.setup.js` to `jest.setup.cjs` and updated `jest.config.cjs` accordingly.
+    *   Fixed syntax error in `test/api/sync-products/route.test.ts` related to mock implementation.
+
+## Documentation Update and Next Steps (Current Session - May 9, 2025)
+
+*   **Documentation Updated:**
+    *   `README.md`, `progress.md`, and `actionable_todo.md` were updated to reflect the latest changes, including Jest configuration updates, new test cases, and the current project status.
+    *   This `feedback.md` file has also been updated.
+*   **Next Steps:**
+    *   Run `npm test` to verify all tests pass with the updated Jest configuration and new test cases. (Status: In progress, significant debugging undertaken for ESM compatibility).
+    *   Address any remaining tasks in `ai_chat_todo.md`.
+    *   Continue monitoring chat interactions and the full sync process.
+    *   Implement feedback loop for continuous improvement as outlined in `ai_chat_todo.md` and `feedback.md`.
+
+## Jest ESM Transition and Debugging (Current Session - May 9, 2025 AM)
+
+This session involved extensive efforts to transition the Jest test suite to properly support ES Modules, driven by `"type": "module"` in `package.json` and the `--experimental-vm-modules` flag.
+
+*   **Jest Configuration (`jest.config.cjs`):**
+    *   Updated to use the `ts-jest/presets/default-esm` preset.
+    *   Adjusted `transformIgnorePatterns` to ensure necessary ESM dependencies (like `@upstash/*`, `@google/generative-ai`, `next`, `ioredis-mock`) are transformed.
+    *   Set `testEnvironment` to `'node'` as the default.
+*   **Test File Updates:**
+    *   Added explicit Jest globals imports (`import { jest, ... } from '@jest/globals';`) to all test files.
+    *   Refactored mock declarations in several files (`test/lib/redis.cache.test.js`, `test/chat.test.js`, `test/gemini.test.js`) to adhere to Jest's rules for hoisted mocks in ESM (e.g., prefixing out-of-scope variables with `mock`, changing `jest.doMock` to `jest.mock` for top-level mocks).
+    *   Corrected mock function typings in `test/api/sync-products/route.test.ts` to resolve `never` type errors.
+*   **Manual Mocks:**
+    *   Created `__mocks__/@upstash/redis.ts` to provide a stable mock for `@upstash/redis` using `ioredis-mock`, aiming to fix issues in `test/lib/redis.cache.test.js`.
+    *   Created `__mocks__/next/server.ts` to provide a robust manual mock for `NextRequest` and `NextResponse`, aiming to fix `TypeError: Response.json is not a function` and potential `require is not defined` errors in `test/chat.test.js`.
+    *   Deleted a duplicate `__mocks__/next/server.js` file that was causing conflicts.
+*   **Current Test Status:**
+    *   `test/shopify.test.js`: Passing.
+    *   `test/api/sync-products/route.test.ts`: Skipped as per instruction. Previously showed new type errors after config changes, which were addressed.
+    *   `test/gemini.test.js`: Still failing due to mock value mismatches (AI response content) and the embedding mock (`mockGeminiEmbedContent`) not being effective (real embeddings are returned).
+    *   `test/lib/redis.cache.test.js`: Still failing. Tests expect data from cache but receive `null`. A spy on `actualRedisClientFromLib.set` also failed, indicating issues with how the manual mock or `ioredis-mock` instance is interacting with the test.
+    *   `test/chat.test.js`: The `ReferenceError: require is not defined` seems resolved after introducing the manual mock for `next/server`. However, it now fails with `TypeError: Response.json is not a function` (indicating the manual mock for `next/server` might not be correctly applied or implemented) and one test timeout.
+*   **Next Steps (for new thread/session):**
+    *   Prioritize fixing the remaining test failures, focusing on:
+        *   Ensuring the manual mock for `next/server` is correctly picked up and used by `test/chat.test.js`.
+        *   Debugging the manual mock for `@upstash/redis` to ensure data persistence and spy functionality in `test/lib/redis.cache.test.js`.
+        *   Investigating why the embedding mock in `test/gemini.test.js` is not effective.
+    *   Once the test suite is stable (excluding `sync-products` for now), proceed with the primary goal of implementing the feedback loop.

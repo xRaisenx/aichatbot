@@ -4,36 +4,36 @@
 
 This project is an AI chatbot for Planet Beauty, built with Next.js and deployed on Vercel. It uses the Google Gemini API for natural language understanding and the Upstash Vector database (BM25 sparse search) for product search and retrieval. It integrates with the Shopify Admin API (GraphQL) to sync product data.
 
-## Current Status (As of May 8, 2025 - Late Evening Update)
+## Current Status (As of May 9, 2025 - End of Session)
 
 *   **Core Functionality & Stability:**
-    *   All 5 test suites (24 tests) are passing (`npm test`) with clean console output.
-    *   Linting (`npm run lint`) and build (`npm run build`) are successful.
-*   **Key Recent Fixes & Enhancements:**
-    *   **Test Suite Overhaul:**
-        *   Resolved critical Jest mocking issues for `@upstash/ratelimit` (static `slidingWindow` method), `NextResponse` (header handling), and `@upstash/vector` (mocking `buildDynamicMappings` initialization).
-        *   Provided more complete default mock data for Gemini responses in `test/chat.test.js` to prevent warnings.
-        *   Systematically suppressed expected `console.error` and `console.warn` messages across all test files (`test/chat.test.js`, `test/gemini.test.js`, `test/lib/redis.cache.test.js`, `test/api/sync-products/route.test.ts`) using `jest.spyOn` and dynamic imports where necessary (e.g., `lib/redis` in `redis.cache.test.js`).
-    *   **Runtime GraphQL Error Resolution:**
-        *   Fixed GraphQL syntax and selection errors in `SHOPIFY_PRODUCTS_QUERY` within `lib/shopify-admin.ts`, enabling successful execution of the `/api/sync-products` endpoint.
-    *   **Metadata Alignment:**
-        *   Updated `ProductVectorMetadata` interface and related logic in `app/api/chat/route.ts` to handle `tags` as `string[]`, aligning with Shopify data and existing sync logic.
-    *   **Improved Fallback Mechanism:**
-        *   Implemented a more targeted fallback mechanism for product search when no direct matches are found, using `keywordMappings.defaultComboTypes` and `keywordMappings.typeToKeywords`.
-    *   **Removed Custom Babel Configuration:**
-        *   Removed the unnecessary `.babelrc` file.
-    *   **ESLint Fix:**
-        *   Removed unused import `AdminShopifyProductNode` from `app/api/sync-products/route.ts`.
+    *   Linting (`npm run lint`) and build (`npm run build`) remain successful.
+*   **Jest ESM Transition & Debugging (Ongoing):**
+    *   `jest.config.cjs` updated to use `preset: 'ts-jest/presets/default-esm'` for improved ES Module support.
+    *   `transformIgnorePatterns` adjusted to correctly handle ESM dependencies.
+    *   Added explicit Jest globals imports (`import { jest, ... } from '@jest/globals';`) to test files (`test/shopify.test.js`, `test/gemini.test.js`, `test/api/sync-products/route.test.ts`, `test/chat.test.js`).
+    *   Manual mocks created for `@upstash/redis` (in `__mocks__/@upstash/redis.ts`) and `next/server` (in `__mocks__/next/server.ts`) to resolve complex mocking issues in ESM.
+    *   Duplicate manual mock `__mocks__/next/server.js` was deleted.
+    *   **Current Test Status:**
+        *   `test/shopify.test.js`: Passing.
+        *   `test/api/sync-products/route.test.ts`: Skipped (per user instruction). Previously had issues with mock types and `NextResponse.json` mock.
+        *   `test/gemini.test.js`: Failing due to mock value mismatches and ineffective embedding mock.
+        *   `test/lib/redis.cache.test.js`: Failing due to issues with the manual mock interaction (data not persisting as expected, spy errors).
+        *   `test/chat.test.js`: Failing due to `TypeError: Response.json is not a function` (manual `next/server` mock likely not fully effective or correctly implemented/picked up) and one test timeout. The previous `ReferenceError: require is not defined` seems resolved by the manual `next/server` mock.
+*   **Previous Enhancements (Summary):**
+    *   Sparse search (BM25), Upstash Vector query timeouts, Pino logging in `app/api/chat/route.ts`.
+    *   Expanded unit tests for chat, Jest config updates for `ts-jest` and ES Modules.
 *   **Product Synchronization (`/api/sync-products`):**
-    *   Continues to use GraphQL Admin API for fetching and performs sparse-only (BM25) upserts to Upstash Vector.
-    *   Normalizes `productType` and `tags` before indexing in Upstash Vector.
+    *   Logic remains for GraphQL fetching and BM25 upserts. (Currently not being tested via `npm test`).
 *   **Chat Functionality (`/api/chat`):**
-    *   Continues to perform sparse-only (BM25) queries against Upstash Vector.
-*   **Next Steps:**
-    *   **Documentation Update:** Review and update all relevant documentation (including this `README.md`, `ai_chat_todo.md`, etc.) to accurately reflect the current system state, recent fixes, and architectural decisions.
-    *   Once documentation is confirmed to be up-to-date, revisit tasks outlined in `ai_chat_todo.md`, adapting them for the sparse-only search architecture and current project stability.
-    *   Continue monitoring chat interactions and the full sync process.
-    *   **Implement timeouts for Upstash Vector queries** to prevent hanging requests.
+    *   Core logic for sparse queries and logging is in place. Test failures indicate issues with mocks for `next/server`.
+*   **Next Steps (for new thread/session):**
+    *   **Resolve all remaining Jest test failures:**
+        *   `test/gemini.test.js`: Debug mock effectiveness (especially for embeddings) and update mock response data.
+        *   `test/lib/redis.cache.test.js`: Ensure manual mock for `@upstash/redis` works correctly for data persistence and spying.
+        *   `test/chat.test.js`: Fix `TypeError: Response.json is not a function` by ensuring the manual `next/server` mock is correctly implemented and used. Address test timeout.
+    *   Once tests are stable (excluding `sync-products` for now), proceed with implementing the feedback loop functionality from `ai_chat_todo.md`.
+    *   Address other pending tasks in `ai_chat_todo.md`.
 
 ## Technologies Used
 
@@ -165,14 +165,18 @@ This project is deployed on Vercel. To deploy this project to Vercel, follow the
     *   In the Vercel dashboard, configure the environment variables for the project.
     *   Make sure to set the correct values for all required environment variables.
 
-**Note:** The test environment uses `jsdom` by default, but API route tests (like `test/api/sync-products/route.test.ts`) use the `node` environment via a `// @jest-environment node` directive. A polyfill for `Request` (`jest.setup.js`) is used to handle Web API dependencies in the test environment. Mocks for `next/server` and specific API routes (`__mocks__/`) are used to isolate testing.
+**Note:** The Jest test environment is now configured to `'node'` by default (in `jest.config.cjs`). Specific test files needing `jsdom` would require a `// @jest-environment jsdom` docblock. Manual mocks in the `__mocks__` directory are used for `@upstash/redis` and `next/server`.
 
 5.  **Set up a custom domain (optional):**
     *   In the Vercel dashboard, set up a custom domain for the project.
 
 ## Testing
 
-Unit tests are written using Jest. All unit tests, including those for the product sync API (`test/api/sync-products/route.test.ts`) and chat functionalities, were passing as of the last run after recent modifications. The codebase also passes all lint checks. Run all tests with:
+Unit tests are written using Jest. The test suite is currently undergoing significant updates for ES Module compatibility. Current status:
+*   `test/shopify.test.js`: Passing.
+*   `test/api/sync-products/route.test.ts`: Skipped.
+*   Other test files (`test/gemini.test.js`, `test/lib/redis.cache.test.js`, `test/chat.test.js`): Failing, debugging in progress.
+The codebase passes all lint checks. Run all tests (including currently skipped/failing) with:
 
 ```bash
 npm test
