@@ -2,106 +2,95 @@
 
 ## Description
 
-This project is an AI chatbot for Planet Beauty, built with Next.js and deployed on Vercel. It uses the Google Gemini API for natural language understanding and the Upstash Vector database for product search and retrieval. It also integrates with the Shopify Admin API to sync product data.
+This project is an AI chatbot for Planet Beauty, built with Next.js and deployed on Vercel. It uses the Google Gemini API for natural language understanding and the Upstash Vector database (BM25 sparse search) for product search and retrieval. It integrates with the Shopify Admin API (GraphQL) to sync product data.
 
-## Current Status (As of May 8, 2025 - Evening)
+## Current Status (As of May 8, 2025 - Late Evening Update)
 
 *   **Core Functionality & Stability:**
-    *   All verification checks (`npm run lint`, `npm run build`, `npm test`) are passing.
-    *   Linting errors in `app/api/sync-products/route.ts` (related to `@ts-expect-error`) have been resolved.
-    *   Build errors in `app/api/chat/route.ts` (related to hybrid query payload typing) have been fixed.
-    *   Unit test mocks in `test/chat.test.js` for `@google/generative-ai` embedding model have been corrected.
-*   **Product Synchronization (`/api/sync-products` & `simulate-sync.ts`):**
-    *   The product sync API (`app/api/sync-products/route.ts`) has been updated to remove the hardcoded limit of 10,000 fetched products, allowing it to attempt syncing all products from Shopify by paginating as long as a cursor is available.
-    *   The Upstash index (`UPSTASH_VECTOR_URL`) is confirmed to be configured for hybrid search (768-dim dense + sparse).
-    *   Full product synchronization is currently on hold pending verification of the complete sync process and resolution of any potential timeout or resource issues with large datasets.
-*   **Chat Functionality (`/api/chat` & `simulate-chat.ts`):**
-    *   The chat API (`app/api/chat/route.ts`) has been updated to ensure it attempts hybrid queries correctly (sending both `vector` and `data`) and connects to the same hybrid index as the sync API.
-    *   The chat simulation (`simulate-chat.ts`) connects successfully to the API.
-    *   **Key Issue (On Hold):** Despite the hybrid index configuration and API updates, the chat simulation **still fails to retrieve any specific products** from the vector index. Debugging this specific issue is paused.
-*   **Current Focus (AI Smart Interactions - Completed for this iteration):**
-    *   The primary focus was on **improving AI smart interactions**, specifically how the AI handles simple greetings and conversational turns.
-    *   **Key Changes Implemented:**
-        *   **AI Smart Interactions (`app/api/chat/route.ts`):**
-            *   Refined Gemini prompt and response logic to handle simple greetings and conversational turns more naturally, avoiding awkward product-related advice.
-            *   Added a 10-second timeout wrapper for Gemini API calls to prevent Vercel function timeouts.
-            *   Ensured Upstash Vector client initialization cleans URL/token strings.
-        *   **Product Synchronization (`app/api/sync-products/route.ts`):**
-            *   Removed the hardcoded 10,000 product fetch limit to allow for full synchronization of all products.
-            *   Ensured Upstash Vector client initialization cleans URL/token strings to prevent parsing errors.
-            *   Added a 500ms delay between batch upserts to manage load.
-            *   Refined duplicate product checking logic to correctly handle items potentially missing dense vectors from previous sparse-only fallbacks.
-        *   **Linting & Build:** Resolved all ESLint errors and ensured the project builds successfully.
-    *   These changes were verified by linting, building, and running simulations.
-    *   **Next Steps:** Monitor chat interactions and the full sync process (especially with the removed fetch limit) for stability, performance, and any further issues.
+    *   All 5 test suites (24 tests) are passing (`npm test`) with clean console output.
+    *   Linting (`npm run lint`) and build (`npm run build`) are successful.
+*   **Key Recent Fixes & Enhancements:**
+    *   **Test Suite Overhaul:**
+        *   Resolved critical Jest mocking issues for `@upstash/ratelimit` (static `slidingWindow` method), `NextResponse` (header handling), and `@upstash/vector` (mocking `buildDynamicMappings` initialization).
+        *   Provided more complete default mock data for Gemini responses in `test/chat.test.js` to prevent warnings.
+        *   Systematically suppressed expected `console.error` and `console.warn` messages across all test files (`test/chat.test.js`, `test/gemini.test.js`, `test/lib/redis.cache.test.js`, `test/api/sync-products/route.test.ts`) using `jest.spyOn` and dynamic imports where necessary (e.g., `lib/redis` in `redis.cache.test.js`).
+    *   **Runtime GraphQL Error Resolution:**
+        *   Fixed GraphQL syntax and selection errors in `SHOPIFY_PRODUCTS_QUERY` within `lib/shopify-admin.ts`, enabling successful execution of the `/api/sync-products` endpoint.
+    *   **Metadata Alignment:**
+        *   Updated `ProductVectorMetadata` interface and related logic in `app/api/chat/route.ts` to handle `tags` as `string[]`, aligning with Shopify data and existing sync logic.
+    *   **Improved Fallback Mechanism:**
+        *   Implemented a more targeted fallback mechanism for product search when no direct matches are found, using `keywordMappings.defaultComboTypes` and `keywordMappings.typeToKeywords`.
+    *   **Removed Custom Babel Configuration:**
+        *   Removed the unnecessary `.babelrc` file.
+    *   **ESLint Fix:**
+        *   Removed unused import `AdminShopifyProductNode` from `app/api/sync-products/route.ts`.
+*   **Product Synchronization (`/api/sync-products`):**
+    *   Continues to use GraphQL Admin API for fetching and performs sparse-only (BM25) upserts to Upstash Vector.
+    *   Normalizes `productType` and `tags` before indexing in Upstash Vector.
+*   **Chat Functionality (`/api/chat`):**
+    *   Continues to perform sparse-only (BM25) queries against Upstash Vector.
+*   **Next Steps:**
+    *   **Documentation Update:** Review and update all relevant documentation (including this `README.md`, `ai_chat_todo.md`, etc.) to accurately reflect the current system state, recent fixes, and architectural decisions.
+    *   Once documentation is confirmed to be up-to-date, revisit tasks outlined in `ai_chat_todo.md`, adapting them for the sparse-only search architecture and current project stability.
+    *   Continue monitoring chat interactions and the full sync process.
+    *   **Implement timeouts for Upstash Vector queries** to prevent hanging requests.
 
 ## Technologies Used
 
 *   Frontend: Next.js (App Router), React, TypeScript, Tailwind CSS
 *   Backend: Next.js API Routes (Serverless Functions on Vercel)
 *   AI: Google Gemini API
-*   Vector Database: Upstash Vector (intended for Hybrid Search - Dense + Sparse/BM25, requires correct index configuration)
+*   Vector Database: Upstash Vector (currently using **Sparse Search - BM25**)
 *   Caching & Session Management: Upstash Redis
-*   E-commerce Integration: Shopify Admin API & Storefront API
+*   E-commerce Integration: Shopify Admin API (**GraphQL**) & Storefront API
 
-## Upstash Vector (Hybrid Search)
+## Upstash Vector (Sparse Search - BM25)
 
-The project utilizes Upstash Vector for product search, configured to use Hybrid Search. This combines the strengths of:
-*   **Dense Vectors (Semantic Search):** For understanding the meaning and context of user queries and product descriptions. The target dense embedding model is `google-bert/bert-base-uncased` (768 dimensions).
-*   **Sparse Vectors (BM25 - Keyword Search):** For precise keyword matching.
+The project utilizes Upstash Vector for product search, currently configured for **Sparse Search using BM25**. This approach relies on keyword matching and term frequency.
+*   **Sparse Vectors (BM25 - Keyword Search):** For precise keyword matching based on product titles, descriptions, tags, vendor, and product type.
 
-The `app/api/sync-products/route.ts` API fetches product data from Shopify, generates 768-dimension dense vectors (using Google's `models/embedding-001`), prepares `textForBM25` metadata, and upserts data suitable for a hybrid index. It includes:
-*   Error handling for sparse-only indexes (falls back to sparse upsert if dense/hybrid upsert fails with "This index requires sparse vectors").
-*   A 30-second request timeout for Upstash Vector client operations.
-*   A duplicate checking mechanism to avoid re-upserting unchanged products (compares both vector and metadata).
-*   Batch processing (`BATCH_SIZE_VECTOR = 25`) to manage Vercel serverless function execution limits.
+The `app/api/sync-products/route.ts` API fetches product data from Shopify (via GraphQL), prepares `textForBM25` by concatenating relevant product fields, and upserts this text data to Upstash Vector for BM25 indexing. It includes:
+*   A duplicate checking mechanism based on metadata comparison to avoid re-upserting unchanged products.
+*   Batch processing (`BATCH_SIZE_VECTOR = 25`) and retry logic for upserts.
 
-**Example Upstash Vector SDK Usage (Illustrative):**
+**Example Upstash Vector SDK Usage (Illustrative for Sparse Search):**
 ```typescript
 import { Index } from "@upstash/vector";
 // Initialize the client with your actual URL and token from environment variables
 const index = new Index({
   url: process.env.UPSTASH_VECTOR_URL || "YOUR_UPSTASH_VECTOR_URL_PLACEHOLDER",
   token: process.env.UPSTASH_VECTOR_TOKEN || "YOUR_UPSTASH_VECTOR_TOKEN_PLACEHOLDER",
-  requestTimeout: 30000, // Example of request timeout
 });
 
-// Example: Upserting data for hybrid search
-// (The actual structure might vary slightly based on specific needs and SDK version)
+// Example: Upserting data for sparse search (BM25)
 await index.upsert({
   id: "product-id-123",
-  vector: [0.1, 0.2, /* ...768 dimensions */], // Dense vector from embedding model
-  // For hybrid search, text data for BM25 is often passed in metadata
-  metadata: { 
-    textForBM25: "Product Title Product Description relevant keywords",
+  data: "Product Title Product Description relevant keywords for BM25", // Text content for BM25
+  metadata: {
     title: "Product Title",
-    // ... other metadata fields
+    handle: "product-handle",
+    vendor: "Product Vendor",
+    productType: "Product Type",
+    tags: ["tag1", "tag2", "relevant-tag"], // Example of tags as string[]
+    price: "19.99",
+    imageUrl: "https://example.com/image.jpg",
+    productUrl: "https://example.com/product/product-handle",
+    variantId: "gid://shopify/ProductVariant/1234567890"
+    // ... other relevant metadata fields
   },
 });
 
-// Example: Querying the hybrid index (as implemented in app/api/chat/route.ts)
+// Example: Querying the sparse index (as implemented in app/api/chat/route.ts)
 const queryText = "user search query string";
-const queryVector = await generateEmbeddings(queryText); // Generate 768-dim vector
 
-if (queryVector) {
-  // Hybrid Search
-  await index.query({
-    vector: queryVector,      // Dense query vector
-    data: queryText,          // Query text for BM25 sparse search
-    topK: 5,
-    includeMetadata: true,
-  } as any); // Type assertion might be needed depending on SDK version/typings
-} else {
-  // Fallback Sparse Search
-  await index.query({
-    data: queryText,          // Query text for BM25 sparse search
-    topK: 5,
-    includeMetadata: true,
-  });
-}
+await index.query({
+  data: queryText,          // Query text for BM25 sparse search
+  topK: 5,
+  includeMetadata: true,
+});
 
 ```
-**Note:** For optimal performance and to fully utilize hybrid search, the Upstash Vector index should be configured to support both 768-dimension dense vectors and sparse (BM25) data. The sync API includes workarounds if the index is sparse-only (e.g., by attempting a sparse-only upsert if a hybrid upsert fails with a relevant error message) and a duplicate check to prevent re-processing identical items.
+**Note:** The Upstash Vector index should be configured for sparse search (BM25). The sync API prepares and sends text data suitable for this type of index.
 
 ## Environment Variables
 
@@ -231,6 +220,10 @@ npx tsx simulate-chat.ts
 *   **The chatbot is not displaying the correct theme:**
     *   Make sure that the theme is configured correctly in the application.
     *   Check the browser console for any errors.
+*   **Upstash Redis Connection Issues:**
+    *   Ensure that the `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` environment variables are set correctly in the `.env` file.
+    *   Verify that the Upstash Redis database is running and accessible from the application.
+    *   Check the server logs for any connection errors.
 *   **Chat Interface Issues (e.g., font, size):**
     *   Verify "Montserrat" font is correctly imported and applied in `app/globals.css`.
     *   Inspect CSS for `ChatInterface.module.css` to ensure `resize`, `overflow`, `height`, `min-height`, and `min-width` properties are correctly applied, especially within media queries.
