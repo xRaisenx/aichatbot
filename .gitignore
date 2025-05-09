@@ -1,0 +1,62 @@
+/node_modules
+/.mcp-dev-server
+/.clinerules
+/.next
+/.vercel
+/.vscode
+.env*
+.env.local
+.env.development
+.env.production
+.DS_Store
+*.log
+/shopify-mcp-server
+.vercel
+
+# Secure sensitive files and directories
+/mcp-server.log
+/tsconfig.tsbuildinfo
+*.key
+*.pem
+*.crt
+
+# Ignore additional sensitive files
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Ignore build artifacts
+/build
+/dist
+/out
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.old
+
+# Ignore IDE-specific files
+.idea/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# Ignore test coverage reports
+/coverage
+
+# Ignore debug files
+*.stackdump
+*.core
+*.pid
+
+# Ignore miscellaneous
+Thumbs.db
+Desktop.ini
+*.orig
+*.rej
+*.patch
+*.diff
