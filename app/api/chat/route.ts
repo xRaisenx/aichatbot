@@ -3,7 +3,6 @@ import { Redis } from "@upstash/redis";
 import { Index, QueryResult } from '@upstash/vector';
 import { LRUCache } from 'lru-cache';
 import { NextRequest, NextResponse } from 'next/server';
-import pino from 'pino';
 // import { fetchProductPrices } from '../../../lib/external'; // Removed as unused
 // Define currency globally for easy update
 // const CURRENCY_SYMBOL = '$'; // Removed as unused
@@ -29,7 +28,7 @@ import {
   ProductVectorMetadata
 } from '../../../lib/types';
 
-const logger = pino();
+const logger = require('pino')({ level: 'warn' });
 
 const ratelimit = new Ratelimit({
   redis: new Redis({
