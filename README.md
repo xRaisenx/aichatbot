@@ -6,20 +6,18 @@ Welcome to the Planet Beauty AI Chatbot project! This isn't just a chatbot; it's
 
 Our solution leverages the power of Google's Gemini API for sophisticated natural language understanding and Upstash Vector for lightning-fast, relevant product searches. Deep integration with Shopify ensures real-time product data accuracy and a smooth path from query to checkout.
 
-## ✨ Key Features
+## ✨ Key Features: Crafting the Ultimate Shopping Companion
 
-*   **Advanced Natural Language Conversations:** Understands complex user queries, intent, and context using a powerful integrated Large Language Model (LLM) (e.g., xAI's Grok, OpenAI's GPT-4, or similar).
-*   **Intelligent Product Search:** Utilizes Upstash Vector (BM25 sparse search) for quick and accurate product discovery.
-*   **Shopify GraphQL Fallback:** Ensures product information is always available.
-*   **Enhanced Contextual Chat History:**
-    *   Remembers previous turns in the conversation.
-    *   Utilizes LLM-powered summarization for long conversations to maintain relevant context efficiently.
-*   **General Knowledge Base:** Answers general beauty-related questions (e.g., "What is skincare?") using a dedicated Upstash Vector index.
-*   **External Data Integration:** Capable of fetching real-time data (e.g., product prices, trends) from external APIs to enrich responses (placeholder implementation).
-*   **Real-time Product Sync:** Keeps product information up-to-date via Shopify Admin API.
-*   **Efficient Caching & Rate Limiting:** Employs Upstash Redis for optimized performance and stability.
-*   **Scalable Architecture:** Built on Next.js and Vercel.
-*   **Grok-like Personality:** AI responses are designed to be clear, concise, conversational, and slightly witty.
+*   **Sophisticated LLM-Powered Dialogue:** At its heart, our assistant uses **Google's Gemini API**, enabling it to understand not just words, but the *intent and context* behind complex customer queries. This allows for natural, flowing conversations and truly helpful, human-like advice.
+*   **Intelligent Product Discovery:** Combines **Upstash Vector** for rapid semantic search with traditional filtering, ensuring customers find the right products quickly, even with vague or multifaceted requests.
+*   **Unbreakable Context & Memory:** Features **enhanced contextual chat history**, remembering previous interactions within a session. For longer conversations, it intelligently uses **LLM-powered summarization** to maintain relevant context efficiently, ensuring a coherent and personalized experience from start to finish.
+*   **Blazing-Fast & Responsive:** Leverages **efficient caching strategies** (Upstash Redis for server-side data like system prompts and chat history segments, and LRU cache for frequently accessed API data) to deliver swift responses and a smooth user experience.
+*   **Adaptive & Relevant Interactions:** While not "learning" in a self-modifying AI sense, the system is designed for **continuous improvement through iterative prompt engineering**. The LLM's capabilities allow for responses that adapt to the evolving conversation, demonstrating a nuanced understanding of user needs as the chat progresses.
+*   **Shopify GraphQL Fallback:** Guarantees product information availability, even if vector search yields no immediate results for highly specific edge cases.
+*   **General Knowledge Base:** Answers general beauty-related questions (e.g., "What is skincare?") using a dedicated Upstash Vector index, positioning itself as a knowledgeable beauty advisor.
+*   **Real-time Product Sync:** Keeps product information current via Shopify Admin API.
+*   **Scalable & Robust Architecture:** Built on Next.js and Vercel, designed for reliability and growth.
+*   **Engaging Personality:** AI responses are crafted to be clear, concise, conversational, and helpful, with a touch of Planet Beauty's brand voice.
 
 ## 📈 Business Value for Planet Beauty
 
@@ -28,17 +26,28 @@ Our solution leverages the power of Google's Gemini API for sophisticated natura
 *   **Improved Customer Engagement:** Offers a more dynamic and knowledgeable interactive experience.
     *   **Reduced Support Load:** Automates responses to a wider range of common and complex queries.
 
+## 📚 Further Project Documentation
+
+For a deeper dive into specific aspects of the project, please refer to the following documents:
+
+*   **[Project Structure](./project_structure.md):** Provides a detailed overview of the project's folder organization, key files, and the technologies used in this Next.js application.
+*   **[Feedback Log](./feedback.md):** Contains a chronological log of project manager feedback, session summaries, key changes implemented, simulation results, and conclusions from different development phases.
+*   **[Actionable TODOs](./actionable_todo.md):** Outlines the prioritized list of development tasks, tracks ongoing work, details outstanding issues, and defines the action plan for subsequent development cycles, including LLM refinement strategies.
+
 ## 🌟 Elevating the Beauty Shopping Experience: The Planet Beauty AI Assistant 🌟
 
 The Planet Beauty AI Chatbot is meticulously engineered to be more than just a virtual helper; it's poised to become the **ultimate intelligent shopping companion**, transforming how customers discover and connect with your products. Our vision is to provide an unparalleled, personalized, and efficient shopping journey for every Planet Beauty enthusiast.
 
-**Why This AI Assistant Stands Out:**
+**Why This AI Assistant is Set to Revolutionize Beauty E-commerce:**
 
-*   **Deep Product Understanding:** Goes beyond simple keyword matching. Our AI, powered by Google's Gemini, comprehends complex queries, nuances in customer language (like "cheap sunscreen" or "serum for dry skin"), and the intent behind their words.
-*   **Personalized Recommendations:** Aims to provide tailored suggestions by understanding product attributes, customer needs (e.g., "vegan," "for oily skin"), and even desired price points. The new "reason for match" feature will offer transparency, explaining *why* a product is suggested.
-*   **Intuitive & Engaging Interface:** Recent UI enhancements include clear product cards with formatted USD pricing, helpful premade questions to kickstart conversations, and a smooth "typing" indicator for a natural chat flow.
-*   **Robust & Scalable Foundation:** Built on a modern tech stack (Next.js, Vercel, Upstash Vector & Redis), ensuring reliability and the capacity to grow with Planet Beauty's needs.
-*   **Continuous Improvement:** Our iterative development process, backed by rigorous simulation testing, ensures we are constantly refining the AI's capabilities to meet and exceed customer expectations.
+*   **Unmatched Conversational Intelligence:** Powered by **Google's Gemini LLM**, our assistant doesn't just process keywords; it *understands* complex questions, subtle intents, and the full context of a conversation. This means customers feel heard and receive genuinely helpful, human-like advice.
+*   **Superior Product Discovery & Personalization:** By combining lightning-fast **Upstash Vector search** with the LLM's deep understanding, we deliver highly relevant product recommendations. The upcoming "reason for match" feature will further enhance trust by explaining *why* each product is suggested, tailored to the user's specific query.
+*   **Seamless & Effortless User Experience:**
+    *   **Robust Memory:** The assistant remembers the conversation, using LLM-powered summarization for longer chats, ensuring a coherent and personalized journey without requiring users to repeat themselves.
+    *   **Speed & Efficiency:** Strategic use of **Upstash Redis and LRU caching** for chat history, system prompts, and API data ensures swift responses and a frustration-free interaction.
+    *   **Intuitive Interface:** Recent UI enhancements like clear product cards (with USD pricing), helpful premade questions, and a natural "typing" indicator make the chat experience smooth and engaging.
+*   **Adaptive & Continuously Improving:** While the AI doesn't "learn" independently, its sophisticated LLM allows it to provide responses that adapt intelligently to the flow of conversation. Furthermore, our commitment to **iterative prompt engineering and rigorous simulation testing** means its capabilities are constantly being refined and perfected based on real-world scenarios.
+*   **Reliable & Scalable Foundation:** Built on a modern tech stack (Next.js, Vercel), the assistant is designed for high availability and can scale to meet Planet Beauty's growing customer base.
 
 **Current Progress Snapshot (As of May 11, 2025):**
 
@@ -79,6 +88,7 @@ The Path to Perfection - Our Commitment:
     more cycles of intensive prompt engineering and testing will elevate the AI's
     performance across all scenarios, solidifying its position as an industry-leading
     shopping assistant.
+  - **Future Vision:** Once we achieve a high degree of reliability (targeting ~90% pass rate in simulations, moving from Alpha to Beta), the roadmap includes expanding this intelligent assistant into a full-fledged **Shopify App for broader marketplace availability**, bringing this advanced shopping experience to more merchants and customers.
 ```
 
 ## 🛠️ Current Development Status (As of May 11, 2025 - Early Morning Update)
