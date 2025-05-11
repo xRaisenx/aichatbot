@@ -25,10 +25,13 @@ This session focused on implementing several UI/UX improvements based on user fe
         *   Logic in `parseAdvice` was updated to convert `productCardData.price` to a `Number`.
     *   **Frontend - Complementary Products (`components/ComplementaryProducts.tsx`):**
         *   Corrected the `price` prop passed to `ProductCard` to ensure it's a `number`.
+    *   **AI-Generated Suggested Questions (New Feature):**
+        *   Implemented a new API endpoint (`/api/chat/generate-suggested-questions`) that uses the LLM to dynamically generate 5 diverse welcome questions.
+        *   Updated `ChatInterface.tsx` to fetch these questions on load, enhancing user guidance with fresh, AI-powered suggestions (includes fallback to static questions on API error).
     *   **Build & Linting:**
-        *   The project successfully passed `npm run lint` and `npm run build` after these modifications.
+        *   The project successfully passed `npm run lint` and `npm run build` after all modifications, including the new API route and frontend changes.
 
-*   **Simulation Results (May 11 - after UI changes):**
+*   **Simulation Results (May 11 - after UI changes, before AI suggested questions were tested via sim):**
     *   `simulate-chat.ts` run: **8 out of 16 test cases PASSING.**
     *   **Passing Highlights:** Greetings (Hi, Thanks), General Question (What is skincare?), Basic Product Search (vegan lipstick), Product Search with Attribute (serum for dry skin), Multiple Types (cleanser and moisturizer - count correct, products not ideal), No Results (fictional item), Memory Query, General Question (chatbot name).
     *   **Persistent Failing Test Cases (Highlights - LLM Behavior):**

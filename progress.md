@@ -101,7 +101,10 @@
     *   `ChatInterface.tsx`: Expanded `suggestedQuestions` and now displays 5 random premade questions.
     *   `ChatMessage.tsx`: Removed "Bella is thinking..." text. Updated `Message` interface for `product_card.price` to be `number` and ensured `Number()` conversion in `parseAdvice`.
     *   `ComplementaryProducts.tsx`: Corrected `price` prop passed to `ProductCard` to be a `number`.
-*   **[New - May 11] [x] Build and Lint Success:** Ensured `npm run lint` and `npm run build` pass after all May 11 changes.
+*   **[New - May 11] [x] AI-Generated Suggested Questions:**
+    *   Created new API endpoint `/api/chat/generate-suggested-questions` using LLM.
+    *   Updated `ChatInterface.tsx` to fetch and display these dynamic questions.
+*   **[New - May 11] [x] Build and Lint Success:** Ensured `npm run lint` and `npm run build` pass after all May 11 changes (including new API route).
 *   **[New - May 11] Simulation Run (Post UI Changes):**
     *   `simulate-chat.ts` run: 8 out of 16 test cases PASSING.
     *   Persistent issues with LLM interpretation of `requested_product_count`, price filters, vendor queries, gibberish handling, set/combo counts, and follow-up clarifications.

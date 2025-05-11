@@ -9,22 +9,19 @@ import { addToCart } from '../lib/shopify';
 import styles from '../styles/ChatInterface.module.css';
 import { ChatMessage, Message } from './ChatMessage';
 
-const suggestedQuestions = [
-  "What’s the best moisturizer for dry skin?",
-  "Can you recommend a sulfate-free shampoo?",
-  "Show me vegan lipsticks under $20.",
-  "Are there any products for sensitive skin?",
-  "I need a good anti-aging serum.",
-  "What are some popular cruelty-free makeup brands?",
-  "Find me a hydrating face mask.",
-  "Suggest a gift set for a friend who loves skincare.",
-  "What's a good sunscreen for oily skin?",
-  "Show me some organic hair care products.",
-];
+// Static suggestedQuestions array is removed, questions will be fetched from API.
 
 const welcomeMessageText =
   process.env.NEXT_PUBLIC_WELCOME_MESSAGE ||
   "Welcome! How can I help you find beauty products today?";
+
+// Fallback questions if API fails
+const fallbackSuggestedQuestions = [
+  "What are the best products for oily skin?",
+  "Can you suggest a good hydrating serum?",
+  "Show me popular vegan makeup items.",
+  "Find cleansers suitable for sensitive skin."
+];
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -33,22 +30,39 @@ export function ChatInterface() {
   const [cartId, setCartId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [premadeQuestions, setPremadeQuestions] = useState<string[]>([]);
+  const [isLoadingPremadeQuestions, setIsLoadingPremadeQuestions] = useState(true);
+
 
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const chatWidgetRef = useRef<HTMLDivElement>(null);
 
-  const getPremadeQuestions = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      const shuffled = [...suggestedQuestions].sort(() => 0.5 - Math.random());
-      return shuffled.slice(0, 5);
-    }
-    return suggestedQuestions.slice(0, 5);
+  useEffect(() => {
+    const fetchSuggestedQuestions = async () => {
+      setIsLoadingPremadeQuestions(true);
+      try {
+        const response = await fetch('/api/chat/generate-suggested-questions');
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+          setPremadeQuestions(data.questions.slice(0, 5)); // Ensure we only take up to 5
+        } else {
+          console.warn("Fetched suggested questions are not in expected format or empty, using fallback.");
+          setPremadeQuestions(fallbackSuggestedQuestions);
+        }
+      } catch (error) {
+        console.error("Failed to fetch AI-generated suggested questions:", error);
+        setPremadeQuestions(fallbackSuggestedQuestions); // Use fallback on error
+      } finally {
+        setIsLoadingPremadeQuestions(false);
+      }
+    };
+
+    fetchSuggestedQuestions();
   }, []);
 
-  useEffect(() => {
-    setPremadeQuestions(getPremadeQuestions());
-  }, [getPremadeQuestions]);
 
   const createWelcomeMessage = useCallback((): Message => {
     return {
@@ -273,7 +287,7 @@ export function ChatInterface() {
             <ChatMessage key={msg.id} message={msg} onAddToCart={handleAddToCart} />
           ))}
         </div>
-        {messages.length <= 1 && !isLoading && premadeQuestions.length > 0 && (
+        {messages.length <= 1 && !isLoading && !isLoadingPremadeQuestions && premadeQuestions.length > 0 && (
           <div className={styles.examples}>
             {premadeQuestions.map((question, index) => (
               <button
