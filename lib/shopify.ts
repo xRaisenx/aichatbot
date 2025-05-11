@@ -24,21 +24,21 @@ interface CartDetailsResponse {
       } | null;
       priceV2: {
         amount: string;
-        currencyCode: string;
+        currencyCode: "USD";
       };
     };
     quantity: number;
     cost: {
       totalAmount: {
         amount: string;
-        currencyCode: string;
+        currencyCode: "USD";
       };
     };
   }[];
   cost: {
     totalAmount: {
       amount: string;
-      currencyCode: string;
+      currencyCode: "USD";
     };
   };
   userErrors: { message: string }[];
@@ -57,14 +57,14 @@ interface CartLineItem {
     } | null;
     priceV2: {
       amount: string;
-      currencyCode: string;
+      currencyCode: "USD";
     };
   };
   quantity: number;
   cost: {
     totalAmount: {
       amount: string;
-      currencyCode: string;
+      currencyCode: "USD";
     };
   };
 }
@@ -99,7 +99,7 @@ export async function fetchCartDetails(cartId: string): Promise<CartDetailsRespo
                   }
                   priceV2 {
                     amount
-                    currencyCode
+                    currencyCode: "USD"
                   }
                 }
               }
@@ -107,7 +107,7 @@ export async function fetchCartDetails(cartId: string): Promise<CartDetailsRespo
               cost {
                 totalAmount {
                   amount
-                  currencyCode
+                  currencyCode: "USD"
                 }
               }
             }
@@ -116,7 +116,7 @@ export async function fetchCartDetails(cartId: string): Promise<CartDetailsRespo
         cost {
           totalAmount {
             amount
-            currencyCode
+            currencyCode: "USD"
           }
         }
         userErrors {
@@ -138,14 +138,14 @@ export async function fetchCartDetails(cartId: string): Promise<CartDetailsRespo
 
     if (!response.ok) {
       console.error('Shopify API error:', response.status, response.statusText);
-      return { cartId: null, checkoutUrl: null, lines: [], cost: { totalAmount: { amount: '0', currencyCode: 'USD' } }, userErrors: [{ message: 'Failed to fetch cart details.' }] };
+      return { cartId: null, checkoutUrl: null, lines: [], cost: { totalAmount: { amount: '0', currencyCode: "USD" } }, userErrors: [{ message: 'Failed to fetch cart details.' }] };
     }
 
     const result = await response.json();
     const cartData = result.data?.cart;
 
     if (!cartData) {
-      return { cartId: null, checkoutUrl: null, lines: [], cost: { totalAmount: { amount: '0', currencyCode: 'USD' } }, userErrors: [{ message: 'Cart not found' }] };
+      return { cartId: null, checkoutUrl: null, lines: [], cost: { totalAmount: { amount: '0', currencyCode: "USD" } }, userErrors: [{ message: 'Cart not found' }] };
     }
 
     const lines = cartData.lines.edges.map((edge: { node: CartLineItem }) => edge.node);
@@ -154,12 +154,12 @@ export async function fetchCartDetails(cartId: string): Promise<CartDetailsRespo
       cartId: cartData.id || null,
       checkoutUrl: cartData.checkoutUrl || null,
       lines: lines || [],
-      cost: cartData.cost || { totalAmount: { amount: '0', currencyCode: 'USD' } },
+      cost: cartData.cost || { totalAmount: { amount: '0', currencyCode: "USD" } },
       userErrors: cartData.userErrors || [],
     };
   } catch (error) {
     console.error('Shopify API error:', error);
-    return { cartId: null, checkoutUrl: null, lines: [], cost: { totalAmount: { amount: '0', currencyCode: 'USD' } }, userErrors: [{ message: 'Failed to fetch cart details.' }] };
+    return { cartId: null, checkoutUrl: null, lines: [], cost: { totalAmount: { amount: '0', currencyCode: "USD" } }, userErrors: [{ message: 'Failed to fetch cart details.' }] };
   }
 }
 

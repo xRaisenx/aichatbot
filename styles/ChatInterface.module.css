@@ -280,6 +280,28 @@
     text-decoration: none;
 }
 
+.viewProductPink {
+    background-color: #F06292;
+    color: #fff;
+    border: none;
+    transition: background 0.2s;
+    text-align: center;
+    display: inline-block;
+}
+
+.viewProductPink:hover {
+    background-color: #e055a1;
+}
+
+.ChatInterface_viewProductPink__ULHtX {
+    background-color: #F06292;
+    color: #fff;
+    border: none;
+    transition: background 0.2s;
+    text-align: center;
+    display: inline-block;
+}
+
 .addToCartButton {
     background-color: #4CAF50;
     color: white;

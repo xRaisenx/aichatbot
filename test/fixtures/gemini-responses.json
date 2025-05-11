@@ -1,0 +1,41 @@
+{
+  "hello": {
+    "ai_understanding": "greeting",
+    "search_keywords": "",
+    "advice": "Hi! How can I assist you today?",
+    "requested_product_count": 0,
+    "product_types": [],
+    "usage_instructions": "",
+    "price_filter": null,
+    "sort_by_price": false,
+    "vendor": "",
+    "attributes": [],
+    "is_product_query": false
+  },
+  "i need a vegan lipstick": {
+    "ai_understanding": "product query for vegan lipstick",
+    "search_keywords": "vegan lipstick",
+    "advice": "Looking for vegan lipsticks! Here are some great options.",
+    "requested_product_count": 1,
+    "product_types": ["lipstick"],
+    "usage_instructions": "Apply to lips as desired.",
+    "price_filter": null,
+    "sort_by_price": false,
+    "vendor": "",
+    "attributes": ["vegan"],
+    "is_product_query": true
+  },
+  "what is skincare?": {
+    "ai_understanding": "general question about skincare",
+    "search_keywords": "",
+    "advice": "Skincare involves routines and products to maintain healthy skin, including cleansing, moisturizing, and sun protection.",
+    "requested_product_count": 0,
+    "product_types": [],
+    "usage_instructions": "A basic skincare routine involves cleansing, toning, treating, moisturizing, and applying sunscreen.",
+    "price_filter": null,
+    "sort_by_price": false,
+    "vendor": "",
+    "attributes": [],
+    "is_product_query": false
+  }
+}

@@ -34,10 +34,11 @@ export async function GET() {
     const settingsKey = 'admin:settings';
     const settings = await redisClient.get(settingsKey);
 
-    if (settings) {
+    if (typeof settings === 'string') {
       return NextResponse.json(JSON.parse(settings));
     } else {
-      return NextResponse.json({}); // Return empty object if no settings found
+      // If settings is null or not a string, return empty object or appropriate error
+      return NextResponse.json({}); 
     }
   } catch (error) {
     console.error('Admin Settings API Error:', error);

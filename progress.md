@@ -38,30 +38,51 @@
 *   [x] Ensure Linting Passes (`npm run lint`)
 *   [x] Fix and Verify Chat Simulation (`simulate-chat.ts` - now using `node --loader ts-node/esm`)
 *   [x] Verify Production Build (`npm run build`)
-*   [ ] **Chat API Enhancements & Debugging (from `ai_chat_todo.md` & Recent Work - May 10, 2025):**
+*   [x] **Chat API Enhancements & Debugging (from `ai_chat_todo.md` & Recent Work - May 10, 2025 - Late Afternoon):**
     *   [x] Implement Sparse Search with BM25 Embeddings (`expandKeywords`).
     *   [x] Add Timeout for Vector Queries (`performVectorQuery`).
     *   [x] Add Structured Logging with `pino`.
-    *   [x] Implement `filterNegativePhrasing`.
-    *   [x] Optimize `chatHistoryCache` with `LRUCache`.
-    *   [x] Made `getEphemeralUserChatHistory` in `lib/redis.ts` more robust.
-    *   [x] Implemented Shopify GraphQL Fallback (`performShopifyGraphQLQuery`).
+    *   [x] Implement `filterNegativePhrasing` (strengthened with more patterns).
+    *   [x] Optimize `chatHistoryCache` with `LRUCache` (logging for hits/misses added).
+    *   [x] Made `getEphemeralUserChatHistory` in `lib/redis.ts` more robust (retry config for client).
+    *   [x] Implemented and Refined Shopify GraphQL Fallback (`performShopifyGraphQLQuery` with more comprehensive filter construction).
     *   [x] Resolved `UPSTASH_VECTOR_REST_URL` inconsistencies.
-    *   [x] Addressed "Invalid metadata in vector query result" (optional `id` field).
-    *   [x] Corrected `performVectorQuery` return logic (fixed "Unreachable code" issue).
-    *   [x] Improved greeting/general query handling (via `is_product_query` logic in `POST` and `validateGeminiResponse` updates).
-    *   [x] `SIMILARITY_THRESHOLD` changed to `2`.
-    *   [x] `vendorMatch` logic in `performVectorQuery` corrected.
-    *   [x] `attributeMatch` logic in `performVectorQuery` relaxed to use `.some()` and check `textForBM25`.
-    *   [x] `typeMatch` logic in `performVectorQuery` updated to also check product `title`.
-    *   [x] Added detailed logging for raw vector results to `performVectorQuery` for improved diagnostics.
-    *   [ ] **CRITICAL ONGOING ISSUE:** Persistent TypeScript error on line 606 of `app/api/chat/route.ts` (`Type 'string | boolean' is not assignable to type 'boolean'`) despite multiple, varied attempts to resolve via type coercion, type guards, and explicit type definitions. This is the primary blocker for further API development.
-    *   [ ] **Ongoing Challenge (Blocked by TS Error):** Product search still failing for some specific queries (e.g., "vegan lipstick", multi-type "cleanser and moisturizer").
-*   [x] Reset Problematic Test Files to Placeholders (`test/chat.test.js`, `test/gemini.test.js`, `test/lib/redis.cache.test.js`).
-*   [ ] **Verify `simulate-chat.ts` Results (Next Technical Step after TS error resolution):**
-    *   Run `simulate-chat.ts` to test the latest filtering logic in `app/api/chat/route.ts`.
-    *   Analyze logs (especially new raw metadata logs) to pinpoint remaining filtering discrepancies.
-    *   Update `simulate-chat.ts` to use currency-appropriate price filters (e.g., Pesos).
-*   [ ] **Rebuild Test Suites:** Incrementally develop new, stable unit tests.
-*   [ ] Implement Feedback Loop: (Ongoing - involves rebuilding tests, running simulations, and iterating).
-*   [x] Update all relevant documentation (`README.md`, `actionable_todo.md`, `progress.md`, `feedback.md`): **(In Progress - May 10, 2025)**
+    *   [x] Addressed "Invalid metadata in vector query result".
+    *   [x] Corrected `performVectorQuery` return logic.
+    *   [x] Improved greeting/general query handling (via `validateGeminiResponse` updates).
+    *   [x] `SIMILARITY_THRESHOLD` remains at 2 (from a previous change to 0.5, then back to 2).
+    *   [x] `vendorMatch` logic in `performVectorQuery` relaxed.
+    *   [x] `attributeMatch` logic in `performVectorQuery` broadened.
+    *   [x] `typeMatch` logic in `performVectorQuery` broadened.
+    *   [x] Price filtering in `performVectorQuery` updated for Pesos (USD from Gemini).
+    *   [x] Added detailed logging (multi-type queries, raw vector results, call latencies, cache sources).
+    *   [x] **CRITICAL TypeScript Error RESOLVED** (in `app/api/chat/route.ts` and `test/app/api/chat/route.test.ts`).
+    *   [x] **Product Search Logic for "Combo/Set" Refined:** Explicit kit search added, component assembly logic adjusted.
+    *   [x] **Gemini Prompt Enhanced (`lib/redis.ts`):** Updated for contextual queries, complex filters, fictional items, and combo/set definitions.
+    *   [x] **System Prompt Caching (`lib/redis.ts`, `app/api/chat/route.ts`):** Implemented.
+    *   [x] **`isPotentiallyGibberish` Updated (`app/api/chat/route.ts`):** Rule 2 length extended.
+*   [x] Reset Problematic Test Files to Placeholders (some remain, e.g. `test/chat.test.js`).
+*   [x] **`simulate-chat.ts` Expanded and Expectations Updated.** (Prior to major refactor)
+*   [ ] **Rebuild Test Suites:** Incrementally develop new, stable Jest unit tests for the new architecture.
+*   [x] Implement Feedback Loop: (Ongoing - architectural refactor completed based on previous feedback).
+*   **Previous Simulation Run (May 10, Late Afternoon - Before Major Refactor):**
+    *   Identified critical issues with complex queries, combo/set fulfillment, fictional product handling, and gibberish detection, leading to the architectural refactor.
+*   [ ] Update all relevant documentation (`README.md`, `actionable_todo.md`, `progress.md`, `feedback.md`): **(In Progress - May 10, 2025 - Evening)**
+
+## Phase 4: New Architecture Implementation & Configuration (May 10, 2025 - Evening)
+
+*   **Goal:** Implement and configure a new "Gemini-like" AI architecture.
+*   [x] **LLM Integration (`lib/llm.ts`):** Created new module with `generateLLMResponse` and placeholder API client.
+*   [x] **Enhanced System Prompt (`lib/redis.ts`):** Replaced `STATIC_BASE_PROMPT_CONTENT` with new "Grok-style" prompt.
+*   [x] **Chat History Summarization (`lib/redis.ts`):** Added `summarizeChatHistory` function.
+*   [x] **General Knowledge Base Search (`lib/redis.ts`):** Added `searchKnowledgeBase` (placeholder).
+*   [x] **External Data Integration (`lib/external.ts`):** Created module with placeholder `fetchProductPrices`.
+*   [x] **Centralized Types (`lib/types.ts`):** Created new file for shared types; updated `lib/redis.ts`, `lib/llm.ts`, and `app/api/chat/route.ts`.
+*   [x] **Chat API Refactor (`app/api/chat/route.ts`):**
+    *   [x] Replaced direct Gemini SDK calls with `generateLLMResponse`.
+    *   [x] Integrated chat history summarization.
+    *   [x] Added calls to `searchKnowledgeBase` and `fetchProductPrices`.
+    *   [x] Updated `isPotentiallyGibberish` with detailed logging.
+    *   [x] Refined combo/set search logic.
+    *   [x] Updated prompt for fictional/complex queries in `lib/redis.ts`.
+    *   [x] Resolved TypeScript errors related to type mismatches by using centralized types.

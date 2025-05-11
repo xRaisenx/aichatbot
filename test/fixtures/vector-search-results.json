@@ -1,0 +1,40 @@
+{
+  "vegan lipstick": [
+    {
+      "id": "gid://shopify/Product/1234567890",
+      "score": 0.95,
+      "metadata": {
+        "id": "gid://shopify/Product/1234567890",
+        "handle": "vegan-matte-lipstick-ruby-red",
+        "title": "Vegan Matte Lipstick - Ruby Red",
+        "price": "19.99",
+        "imageUrl": "https://example.com/images/vegan-lipstick.jpg",
+        "productUrl": "https://josedevai.myshopify.com/products/vegan-matte-lipstick-ruby-red",
+        "variantId": "gid://shopify/ProductVariant/9876543210",
+        "vendor": "EcoBeauty",
+        "productType": "Lipstick",
+        "tags": ["vegan", "cruelty-free", "matte", "lipstick", "red"],
+        "usageInstructions": "Apply directly to lips for a bold, matte finish. For best results, exfoliate lips before application."
+      }
+    }
+  ],
+  "default": [
+     {
+      "id": "gid://shopify/Product/default001",
+      "score": 0.80,
+      "metadata": {
+        "id": "gid://shopify/Product/default001",
+        "handle": "hydrating-face-serum",
+        "title": "Hydrating Face Serum",
+        "price": "29.99",
+        "imageUrl": "https://example.com/images/hydrating-serum.jpg",
+        "productUrl": "https://josedevai.myshopify.com/products/hydrating-face-serum",
+        "variantId": "gid://shopify/ProductVariant/defaultvar001",
+        "vendor": "PureGlow",
+        "productType": "Serum",
+        "tags": ["hydrating", "serum", "face", "skincare"],
+        "usageInstructions": "Apply 2-3 drops to cleansed face morning and night."
+      }
+    }
+  ]
+}

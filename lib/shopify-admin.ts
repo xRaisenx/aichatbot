@@ -7,7 +7,7 @@ interface AdminShopifyImageNode {
 
 interface AdminShopifyVariantNode {
   id: string;
-  priceV2: AdminShopifyPrice;
+  price: AdminShopifyPrice;
 }
 
 interface AdminShopifyPrice {
@@ -41,13 +41,62 @@ export interface AdminShopifyPageInfo {
   endCursor: string | null;
 }
 
-// --- Fetch Products Function (Admin API using direct HTTP request) ---
+// --- Fetch Products Function (Admin API using GraphQL) ---
 
 export interface AdminFetchResult {
   products: AdminShopifyProductNode[];
   pageInfo: AdminShopifyPageInfo;
 }
 
+const SHOPIFY_PRODUCTS_QUERY = `
+query getProducts($first: Int!, $after: String, $query: String) {
+  products(first: $first, after: $after, query: $query, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        id
+        handle
+        title
+        descriptionHtml
+        vendor
+        productType
+        tags
+        onlineStoreUrl
+        images(first: 5) {
+          edges {
+            node {
+              url
+              altText
+            }
+          }
+        }
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+        variants(first: 5) {
+          edges {
+            node {
+              id
+              price
+            }
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+`;
 
 export async function fetchAdminShopifyProducts(
   cursor: string | null = null,
@@ -62,108 +111,72 @@ export async function fetchAdminShopifyProducts(
     throw new Error('Shopify Admin credentials are not configured.');
   }
 
-  console.log(`Fetching Shopify Admin products via REST... Limit: ${limit}, After: ${cursor || 'Start'}, Filter: "${queryFilter || 'None'}"`);
+  console.log(`Fetching Shopify Admin products via GraphQL... Limit: ${limit}, After: ${cursor || 'Start'}, Filter: "${queryFilter || 'None'}"`);
 
   try {
-    // Construct the REST API URL
     const apiVersion = '2024-01'; // Use a specific version for stability
-    let url = `https://${storeDomain}/admin/api/${apiVersion}/products.json?limit=${limit}`;
-    if (cursor) url += `&after=${encodeURIComponent(cursor)}`;
-    if (queryFilter) url += `&query=${encodeURIComponent(queryFilter)}`;
+    const url = `https://${storeDomain}/admin/api/${apiVersion}/graphql.json`;
 
-    // Make the HTTP request
+    const variables: { first: number; after?: string; query?: string } = {
+      first: limit,
+    };
+    if (cursor) {
+      variables.after = cursor;
+    }
+    if (queryFilter) {
+      variables.query = queryFilter;
+    }
+
     const response = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'X-Shopify-Access-Token': adminAccessToken,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        query: SHOPIFY_PRODUCTS_QUERY,
+        variables,
+      }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Shopify Admin REST API error: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Shopify Admin REST API error: ${response.status} ${errorText}`);
+      console.error(`Shopify Admin GraphQL API error: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`Shopify Admin GraphQL API error: ${response.status} ${errorText}`);
     }
 
-    const data = await response.json();
-    const productsData = data.products;
+    const jsonResponse = await response.json();
 
-    if (!Array.isArray(productsData)) {
-      console.error("Invalid response structure from Shopify Admin REST API:", data);
-      throw new Error("Received invalid data structure from Shopify Admin REST API.");
+    if (jsonResponse.errors) {
+      console.error('Shopify Admin GraphQL API errors:', jsonResponse.errors);
+      throw new Error(`GraphQL errors: ${JSON.stringify(jsonResponse.errors)}`);
     }
 
-interface AdminProduct {
-  id: number;
-  handle: string;
-  title: string;
-  body_html: string;
-  vendor: string;
-  product_type: string;
-  tags: string;
-  images: { src: string; alt: string }[];
-  variants: { id: number; price: string; currency_code: string }[];
-}
+    const productsData = jsonResponse.data?.products?.edges;
+    const pageInfoData = jsonResponse.data?.products?.pageInfo;
 
-    const products: AdminShopifyProductNode[] = productsData.map((p: AdminProduct) => ({
-      id: `gid://shopify/Product/${p.id}`,
-      handle: p.handle,
-      title: p.title,
-      descriptionHtml: p.body_html,
-      vendor: p.vendor || null,
-      productType: p.product_type || null,
-      tags: p.tags ? p.tags.split(', ').filter((tag: string) => tag) : [],
-      onlineStoreUrl: null, // REST API doesn't provide this directly
-      images: {
-        edges: p.images
-          ? p.images.map((img: { src: string; alt: string }) => ({
-            node: { url: img.src, altText: img.alt || null },
-          }))
-          : [],
-      },
-      priceRange: {
-        minVariantPrice: {
-          amount: p.variants[0]?.price || '0.0',
-          currencyCode: p.variants[0]?.currency_code || 'USD',
-        },
-        maxVariantPrice: {
-          amount: p.variants[0]?.price || '0.0',
-          currencyCode: p.variants[0]?.currency_code || 'USD',
-        },
-      },
-      variants: {
-        edges: p.variants
-          ? p.variants.map((v: { id: number; price: string; currency_code: string }) => ({
-            node: { id: `gid://shopify/ProductVariant/${v.id}`, priceV2: { amount: v.price, currencyCode: v.currency_code } },
-          }))
-          : [],
-      },
-    }));
-
-    // Extract pagination info (Shopify REST API uses Link headers)
-    const linkHeader = response.headers.get('Link');
-    let hasNextPage = false;
-    let endCursor: string | null = null;
-    if (linkHeader) {
-      const nextLink = linkHeader.split(',').find((link: string) => link.includes('rel="next"'));
-      if (nextLink) {
-        hasNextPage = true;
-        const match = nextLink.match(/page_info=([^&>]+)/);
-        endCursor = match ? match[1] : null;
-      }
+    if (!Array.isArray(productsData) || !pageInfoData) {
+      console.error("Invalid response structure from Shopify Admin GraphQL API:", jsonResponse);
+      throw new Error("Received invalid data structure from Shopify Admin GraphQL API.");
     }
 
-    const pageInfo: AdminShopifyPageInfo = { hasNextPage, endCursor };
+    const products: AdminShopifyProductNode[] = productsData.map(
+      (edge: { node: AdminShopifyProductNode; cursor: string }) => edge.node
+    );
 
-    console.log(` -> Fetched ${products.length} products. HasNextPage: ${pageInfo.hasNextPage}`);
+    const pageInfo: AdminShopifyPageInfo = {
+      hasNextPage: pageInfoData.hasNextPage,
+      endCursor: pageInfoData.endCursor,
+    };
+
+    console.log(` -> Fetched ${products.length} products. HasNextPage: ${pageInfo.hasNextPage}, EndCursor: ${pageInfo.endCursor}`);
 
     return {
       products,
       pageInfo,
     };
   } catch (err) {
-    console.error("Error during Shopify Admin REST fetch:", err);
-    throw err;
+    console.error("Error during Shopify Admin GraphQL fetch:", err);
+    throw err; // Re-throw to be caught by the caller
   }
 }

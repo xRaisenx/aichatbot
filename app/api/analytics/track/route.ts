@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const userId = req.headers.get('x-user-id') || 'anonymous'; // Get user ID from header
 
     // Store event details in a list
-    await redisClient.rPush(`${eventKey}:details:${userId}`, JSON.stringify({ timestamp, details }));
+    await redisClient.rpush(`${eventKey}:details:${userId}`, JSON.stringify({ timestamp, details }));
 
     return NextResponse.json({ success: true, eventType, timestamp });
   } catch (error) {

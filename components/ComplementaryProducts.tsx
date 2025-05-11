@@ -1,7 +1,7 @@
 // components/ComplementaryProducts.tsx
 'use client';
 
-import { ProductCardResponse } from '../app/api/chat/route'; // Import the interface
+import { ProductCardResponse } from '../lib/types'; // Import the interface
 import { ProductCard } from './ProductCard'; // Import ProductCard to potentially reuse
 
 interface ComplementaryProductsProps {
@@ -24,7 +24,7 @@ export function ComplementaryProducts({ products }: ComplementaryProductsProps) 
             key={index}
             title={product.title}
             description={product.description}
-            price={product.price}
+            price={product.price.toString()}
             image={product.image}
             landing_page={product.landing_page}
             productId={product.variantId} // Pass variantId as productId

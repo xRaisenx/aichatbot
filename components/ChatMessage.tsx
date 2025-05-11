@@ -1,7 +1,7 @@
 // components/ChatMessage.tsx
 import DOMPurify from 'isomorphic-dompurify';
 import { useEffect } from 'react'; // Add useEffect import
-import { ProductCardResponse } from '../app/api/chat/route';
+import { ProductCardResponse } from '../lib/types';
 import styles from '../styles/ChatInterface.module.css';
 import { ComplementaryProducts } from './ComplementaryProducts';
 import { KnowledgeBaseDisplay } from './KnowledgeBaseDisplay';

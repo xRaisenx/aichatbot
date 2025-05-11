@@ -44,7 +44,7 @@ export function ProductCard({ title, description, price, image, landing_page, ma
             href={landing_page}
             target="_blank"
             rel="noopener noreferrer"
-            className={styles.viewProduct}
+            className={`${styles.addToCartButton} ${styles.viewProductPink}`}
           >
             View Product
           </a>

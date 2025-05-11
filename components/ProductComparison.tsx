@@ -1,8 +1,7 @@
 // components/ProductComparison.tsx
 'use client';
 
-import React from 'react';
-import { ProductCardResponse } from '../app/api/chat/route'; // Import the interface
+import { ProductCardResponse } from '../lib/types'; // Import the interface
 
 interface ProductComparisonProps {
   products: ProductCardResponse[];

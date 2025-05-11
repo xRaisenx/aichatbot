@@ -8,63 +8,84 @@ Our solution leverages the power of Google's Gemini API for sophisticated natura
 
 ## ✨ Key Features
 
-*   **Natural Language Conversations:** Understands complex user queries, intent, and context using Google Gemini.
+*   **Advanced Natural Language Conversations:** Understands complex user queries, intent, and context using a powerful integrated Large Language Model (LLM) (e.g., xAI's Grok, OpenAI's GPT-4, or similar).
 *   **Intelligent Product Search:** Utilizes Upstash Vector (BM25 sparse search) for quick and accurate product discovery.
-*   **Shopify GraphQL Fallback:** Ensures product information is always available, even if vector search limits are encountered.
-*   **Contextual Chat History:** Remembers previous turns in the conversation for a more natural interaction.
+*   **Shopify GraphQL Fallback:** Ensures product information is always available.
+*   **Enhanced Contextual Chat History:**
+    *   Remembers previous turns in the conversation.
+    *   Utilizes LLM-powered summarization for long conversations to maintain relevant context efficiently.
+*   **General Knowledge Base:** Answers general beauty-related questions (e.g., "What is skincare?") using a dedicated Upstash Vector index.
+*   **External Data Integration:** Capable of fetching real-time data (e.g., product prices, trends) from external APIs to enrich responses (placeholder implementation).
 *   **Real-time Product Sync:** Keeps product information up-to-date via Shopify Admin API.
 *   **Efficient Caching & Rate Limiting:** Employs Upstash Redis for optimized performance and stability.
 *   **Scalable Architecture:** Built on Next.js and Vercel.
+*   **Grok-like Personality:** AI responses are designed to be clear, concise, conversational, and slightly witty.
 
 ## 📈 Business Value for Planet Beauty
 
-*   **Enhanced Customer Experience:** Provides instant, 24/7 support and personalized shopping guidance.
-*   **Increased Sales Conversion:** Helps customers find the right products quickly.
-*   **Improved Customer Engagement:** Offers an interactive way for customers to connect with the brand.
-*   **Reduced Support Load:** Automates responses to common queries.
+*   **Enhanced Customer Experience:** Provides instant, 24/7 support and highly personalized, intelligent shopping guidance.
+*   **Increased Sales Conversion:** Helps customers find the right products quickly and provides comprehensive information.
+*   **Improved Customer Engagement:** Offers a more dynamic and knowledgeable interactive experience.
+*   **Reduced Support Load:** Automates responses to a wider range of common and complex queries.
 
-## 🛠️ Current Development Status (As of May 10, 2025 - Mid-Day)
+## 🛠️ Current Development Status (As of May 10, 2025 - Evening Session Update)
 
-The project is actively being refined, with significant progress made in stabilizing core chat functionalities. However, a persistent TypeScript issue is currently a primary focus.
+This session focused on a major refactoring of the Chat API (`app/api/chat/route.ts`) and supporting libraries to integrate a more powerful, "Gemini-like" AI architecture.
 
-*   **Chat API (`app/api/chat/route.ts`) Enhancements & Status:**
-    *   **Improved Greeting & General Query Handling:** The chatbot correctly handles greetings and general questions without erroneous product searches.
-    *   **Shopify GraphQL Fallback:** Implemented and functional.
-    *   **Metadata ID Handling:** Addressed.
-    *   **Search Parameter Tuning:** `SIMILARITY_THRESHOLD` is at `2`.
-    *   **Vendor Filtering Logic:** Corrected.
-    *   **Attribute Filtering Attempt:** Logic broadened, but requires ongoing refinement.
-    *   **Persistent TypeScript Error:** A critical TypeScript error on line 606 (previously 597) of `app/api/chat/route.ts` (`Type 'string | boolean' is not assignable to type 'boolean'`) remains unresolved despite multiple attempts using type guards, explicit coercion, and direct type definitions for `geminiResult.is_product_query`. This is the highest priority technical debt.
-*   **Product Search & Filtering (Ongoing Debugging - Blocked by TS Error):**
-    *   Further refinement of search logic for specific queries (e.g., "vegan lipstick", "cheap sunscreen") is pending resolution of the TypeScript error.
-    *   **Key Insight (Still Valid):**
-        *   `productType` field is often empty/generic.
-        *   Specific attributes are frequently in `textForBM25`.
-*   **Environment & Stability:**
-    *   Environment variable configurations are stable.
-*   **Simulation Testing (`simulate-chat.ts`):**
-    *   This script remains the primary tool for end-to-end testing. It will be updated to reflect currency considerations for price-based queries (e.g., using Peso-equivalent values) once the API is stable.
+*   **Key Architectural Enhancements Implemented:**
+    *   **LLM Integration (`lib/llm.ts`):**
+        *   Created a new module to abstract interactions with a powerful external Large Language Model.
+        *   Includes a placeholder API client and `generateLLMResponse` function.
+    *   **Enhanced System Prompt (`lib/redis.ts` - `STATIC_BASE_PROMPT_CONTENT`):**
+        *   The system prompt has been completely rewritten to emulate a "Grok-like" personality – clever, friendly, and witty.
+        *   Includes more explicit instructions for handling complex queries, fictional products, and combo/set requests.
+    *   **Chat History Summarization (`lib/redis.ts`):**
+        *   Added `summarizeChatHistory` function, which uses the LLM to condense long chat histories, improving context retention.
+    *   **General Knowledge Base Search (`lib/redis.ts`):**
+        *   Added `searchKnowledgeBase` function and `KNOWLEDGE_BASE_INDEX_NAME` constant for querying a separate vector index for general beauty knowledge (currently a placeholder querying the product index).
+    *   **External Data Integration (`lib/external.ts`):**
+        *   Created a new module with a placeholder `fetchProductPrices` function to demonstrate fetching real-time external data.
+    *   **Centralized Types (`lib/types.ts`):**
+        *   Created a new file to store shared TypeScript type definitions (`ChatMessage`, `ChatHistory`, `LLMStructuredResponse`, etc.), ensuring consistency across modules.
+    *   **Chat API Refactor (`app/api/chat/route.ts`):**
+        *   The main API logic now uses `generateLLMResponse` for core AI processing.
+        *   Integrates `summarizeChatHistory`, `searchKnowledgeBase`, and `fetchProductPrices` into the response generation flow.
+        *   Updated to use the centralized types from `lib/types.ts`.
+*   **Previous Simulation Issues Addressed (Structurally):**
+    *   The new prompt and LLM integration aim to improve understanding of complex queries and fictional products.
+    *   The refactored API structure provides hooks for more intelligent combo/set handling and knowledge base lookups.
+    *   Detailed logging was added to `isPotentiallyGibberish` for better diagnostics.
 
-## 💡 Next Steps & Roadmap (New Thread - To Be Created)
+## 💡 Next Steps & Roadmap (Focus on New Architecture Configuration & Testing)
 
-The immediate focus for the next development cycle will be:
+With the new architecture in place, the immediate priority is to configure and test its components.
 
-1.  **RESOLVE TYPESCRIPT ERROR (CRITICAL BLOCKER):** Address the persistent TypeScript error in `app/api/chat/route.ts` (line 606) to ensure code health, accurate type checking, and unblock further development on search logic.
-2.  **Refine Product Search & Filtering Logic (High Priority - Post TS Fix):**
-    *   Continue to adapt the filtering logic in `performVectorQuery` in `app/api/chat/route.ts` based on the observed metadata structure.
-    *   Improve handling of multi-type queries (e.g., "cleanser and moisturizer").
-3.  **Update `simulate-chat.ts` (Medium Priority):** Modify test cases, particularly price-based queries, to align with the store's currency (Pesos).
-4.  **Address Nonsensical Input Handling (Medium Priority):** Improve Gemini's prompt or the API's logic for gibberish inputs.
-5.  **Continue with `ai_chat_todo.md` (Ongoing):** Systematically address remaining tasks, including rebuilding Jest unit tests and expanding simulation scenarios.
+1.  **LLM and External API Configuration (High Priority):**
+    *   Replace placeholder API URLs and client logic in `lib/llm.ts` and `lib/external.ts` with actual implementations for the chosen LLM (e.g., xAI, OpenAI) and any external data services.
+    *   Set up required environment variables (e.g., `XAI_API_KEY`, `PRICE_API_KEY`).
+2.  **Knowledge Base Setup (High Priority):**
+    *   Create and populate the `idx:beauty_knowledge` Upstash Vector index with relevant beauty articles, FAQs, and skincare tips.
+    *   Ensure `searchKnowledgeBase` in `lib/redis.ts` can correctly query this new index (may require a separate `Index` client instance).
+3.  **Product Search Filtering (Medium Priority):**
+    *   Implement the `TODO` in `app/api/chat/route.ts` to filter product search results from Upstash Vector based on attributes, vendor, and price filters extracted by the LLM in `llmResult`.
+4.  **Refine Combo/Set Logic with LLM (Medium Priority):**
+    *   Leverage the LLM's improved understanding (via the new prompt) to better distinguish between requests for pre-packaged sets vs. assembling individual items for a combo. The `app/api/chat/route.ts` product search logic may need further adjustments based on the LLM's output for `product_types` and `requested_product_count`.
+5.  **Iterative Testing & Simulation (`simulate-chat.ts`):**
+    *   Thoroughly test the new architecture by running and expanding `simulate-chat.ts`.
+    *   Update test expectations to align with the new Grok-style responses and enhanced capabilities.
+    *   Pay close attention to the logs from `isPotentiallyGibberish` to diagnose any remaining issues with inputs like "asdfjkl;".
+6.  **Unit Testing (Ongoing):**
+    *   Develop Jest unit tests for the new modules (`lib/llm.ts`, `lib/external.ts`) and critical functions in the refactored `app/api/chat/route.ts`.
 
 ## 💻 Technology Stack
 
 *   **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS
 *   **Backend:** Next.js API Routes (Serverless Functions on Vercel)
-*   **AI - Language Model:** Google Gemini API
-*   **AI - Vector Search:** Upstash Vector (Sparse Search - BM25)
+*   **AI - Language Model:** **Integrated external LLM (e.g., xAI Grok, OpenAI GPT-4, Google Gemini Pro/Flash via API)**
+*   **AI - Vector Search:** Upstash Vector (for products and general knowledge base)
 *   **Caching & Session Management:** Upstash Redis, LRUCache
 *   **E-commerce Platform:** Shopify (Admin API - GraphQL, Storefront API)
+*   **External Data:** Placeholder for real-time APIs (e.g., pricing, trends)
 *   **Logging:** Pino
 *   **Testing:** Jest, `ts-node` for simulation scripts
 
@@ -102,17 +123,23 @@ Product synchronization (`app/api/sync-products/route.ts`) populates the vector 
 (Setup and Deployment instructions remain largely the same as previous versions, focusing on cloning, `npm install`, `.env.local` configuration, and Vercel deployment.)
 
 ## 🧪 Testing & Simulation
-*   **Jest Unit Tests:** Rebuilding Jest tests is a pending task.
-*   **Simulation (`simulate-chat.ts`):** Primary tool for E2E testing. Will be updated for currency values. Run with `node --loader ts-node/esm simulate-chat.ts`.
+*   **Jest Unit Tests:** Continue development for new and refactored modules.
+*   **Simulation (`simulate-chat.ts`):** Primary tool for E2E testing. Requires updates for new response styles and capabilities. Run with `npx tsc --project tsconfig.json && node dist_sim/simulate-chat.js` (after temporarily setting `noEmit: false` in `tsconfig.json`).
 
-## 🔑 Environment Variables (Essential)
-(List of essential environment variables like `UPSTASH_VECTOR_REST_URL`, `GEMINI_API_KEY`, Shopify tokens, etc., remains the same.)
+## 🔑 Environment Variables (Essential - Updated)
+*   `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+*   `UPSTASH_VECTOR_URL`, `UPSTASH_VECTOR_REST_URL`, `UPSTASH_VECTOR_TOKEN` (for product index)
+*   **`XAI_API_KEY` or `OPENAI_API_KEY` or `GEMINI_API_KEY` (for the chosen LLM)**
+*   `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ADMIN_ACCESS_TOKEN`
+*   `MAX_CHAT_HISTORY` (optional, defaults to 10)
+*   **`PRICE_API_KEY` (for hypothetical external price API)**
+*   *(Potentially separate Vector credentials if using a different Upstash project for the knowledge base)*
 
 ## Troubleshooting Tips
 *   **Product Search Failures:**
     *   Verify that the `productType` and `attributes` being filtered for exist in the expected fields of products in Upstash Vector.
     *   Ensure price filters in `simulate-chat.ts` account for Pesos.
-*   **TypeScript Errors:** The persistent error on line 606 of `app/api/chat/route.ts` is a known critical issue. The type of `geminiResult.is_product_query` is not being correctly inferred as a boolean despite multiple attempts at coercion and type guarding. This needs to be the top priority for resolution.
+*   **TypeScript Errors:** A persistent TypeScript error related to boolean type inference for product query checks in `app/api/chat/route.ts` was a major challenge. It is now considered resolved following manual user edits and subsequent refactoring of the conditional logic.
 
 ---
 

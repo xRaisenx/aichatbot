@@ -1,3 +1,5 @@
+__mocks__
+~
 /node_modules
 /.mcp-dev-server
 /.clinerules
@@ -7,6 +9,7 @@
 .env*
 .env.local
 .env.development
+.env.development.local
 .env.production
 .DS_Store
 *.log
@@ -60,3 +63,9 @@ Desktop.ini
 *.rej
 *.patch
 *.diff
+
+*.txt
+ai_chat_final.md
+ai_chat_todo.md
+ai_chatbot_distill.md
+ai_memory_chat.md
