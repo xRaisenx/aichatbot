@@ -63,9 +63,9 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
         *   Ensured `productCardData.price` is converted to `Number` in `parseAdvice`.
     *   **[x] Frontend - Complementary Products (`components/ComplementaryProducts.tsx`):**
         *   Corrected `price` prop passed to `ProductCard` to be a `number`.
-    *   **[x] AI-Generated Suggested Questions:**
-        *   Created new API endpoint `/api/chat/generate-suggested-questions` to dynamically generate 5 welcome questions using the LLM.
-        *   Updated `components/ChatInterface.tsx` to fetch questions from this endpoint on load, with fallback to static questions.
+    *   **[x] AI-Generated Suggested Questions (Refined):**
+        *   Updated API endpoint `/api/chat/generate-suggested-questions` to dynamically generate 4 (instead of 5) more creative welcome questions using the LLM (adjusted temperature to 0.9, topP to 0.80, model to 'gemini-1.5-flash', and refined prompt).
+        *   Updated `components/ChatInterface.tsx` to fetch and display 4 questions from this endpoint, with updated fallback questions.
     *   **[x] Build & Linting:**
         *   Successfully ran `npm run lint` and `npm run build` after all modifications, resolving any emergent issues (including unused variable in new API route).
 *   **Previous Work (May 10, Evening - Retained for context):**

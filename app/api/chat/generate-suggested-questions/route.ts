@@ -4,16 +4,16 @@ import pino from 'pino';
 
 const logger = pino();
 
-const MODEL_NAME = "gemini-2.0-flash"; // Or your preferred model
+const MODEL_NAME = "gemini-1.5-flash"; // Reverted to known valid model
 const API_KEY = process.env.GEMINI_API_KEY || "";
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
 const generationConfig = {
-  temperature: 3, // Slightly higher for more creative/diverse questions
+  temperature: 0.9, // Adjusted for high creativity within valid range
   topK: 1,
-  topP: 0.80,
+  topP: 0.80, // User's requested topP
   maxOutputTokens: 2048,
 };
 
@@ -45,7 +45,7 @@ export async function GET(_req: NextRequest) {
     Please ensure the questions are concise, user-friendly, and sound natural.
     Return ONLY a valid JSON array of 4 strings, where each string is a question.
     Example format:
-    ["What's a good serum for anti-aging?", "Show me cruelty-free foundations.", "Any recommendations for oily skin cleansers?", "What are popular gift sets?", "Find hydrating face masks under $50."]
+    ["What's a good serum for anti-aging?", "Show me cruelty-free foundations.", "Any recommendations for oily skin cleansers?", "What are popular gift sets?"]
   `;
 
   try {
@@ -64,19 +64,18 @@ export async function GET(_req: NextRequest) {
       // Clean the response: remove potential markdown/code block fences
       const cleanedText = responseText.replace(/^```json\s*|```\s*$/g, '').trim();
       questions = JSON.parse(cleanedText);
-      if (!Array.isArray(questions) || questions.length !== 5 || !questions.every(q => typeof q === 'string')) {
-        logger.error({ parsedQuestions: questions }, "LLM response for suggested questions was not a valid array of 5 strings.");
+      if (!Array.isArray(questions) || questions.length !== 4 || !questions.every(q => typeof q === 'string')) { // Check for 4 questions
+        logger.error({ parsedQuestions: questions }, "LLM response for suggested questions was not a valid array of 4 strings.");
         throw new Error("Invalid format for suggested questions from LLM.");
       }
     } catch (parseError) {
       logger.error({ parseError, responseText }, "Failed to parse LLM response for suggested questions into JSON array.");
-      // Fallback if parsing fails or format is incorrect
+      // Fallback if parsing fails or format is incorrect - 4 questions
       questions = [
         "What’s the best moisturizer for dry skin?",
         "Can you recommend a sulfate-free shampoo?",
         "Show me vegan lipsticks under $20.",
-        "Are there any products for sensitive skin?",
-        "I need a good anti-aging serum."
+        "Are there any products for sensitive skin?"
       ];
     }
     
@@ -84,13 +83,12 @@ export async function GET(_req: NextRequest) {
 
   } catch (error) {
     logger.error({ err: error }, 'Error generating suggested questions from LLM');
-    // Fallback to a static list in case of any error
+    // Fallback to a static list in case of any error - 4 questions
     const fallbackQuestions = [
         "What are some popular eyeshadow palettes?",
         "Any tips for beginners on skincare routines?",
         "Find me a good gift for my mom.",
-        "What products help with frizzy hair?",
-        "Can you suggest a good night cream?"
+        "What products help with frizzy hair?"
     ];
     return NextResponse.json({ questions: fallbackQuestions, error: "Failed to generate questions dynamically, serving fallback." }, { status: 500 });
   }

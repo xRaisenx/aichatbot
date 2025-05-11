@@ -47,7 +47,7 @@ export function ChatInterface() {
         }
         const data = await response.json();
         if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
-          setPremadeQuestions(data.questions.slice(0, 5)); // Ensure we only take up to 5
+          setPremadeQuestions(data.questions.slice(0, 4)); // Ensure we only take up to 4
         } else {
           console.warn("Fetched suggested questions are not in expected format or empty, using fallback.");
           setPremadeQuestions(fallbackSuggestedQuestions);
