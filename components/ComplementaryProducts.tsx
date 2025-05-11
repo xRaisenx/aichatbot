@@ -24,10 +24,11 @@ export function ComplementaryProducts({ products }: ComplementaryProductsProps) 
             key={index}
             title={product.title}
             description={product.description}
-            price={product.price.toString()}
+            price={product.price}
             image={product.image}
             landing_page={product.landing_page}
             productId={product.variantId} // Pass variantId as productId
+            onAddToCart={() => {}} // Add empty function as placeholder for cart functionality
             // Pass other relevant props if needed
           />
         ))}

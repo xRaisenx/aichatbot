@@ -40,47 +40,81 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
 ### Phase 3.7: Verification Checks (Completed - New Issues Identified)
 (Details omitted for brevity - no changes)
 
-### Phase 4: New Architecture Implementation & Configuration (Ongoing - May 10, 2025 - Evening)
+### Phase 4: New Architecture Implementation & Refinement (Ongoing - May 11, 2025 - Early Morning)
 
-*   **Goal:** Implement and configure a new "Gemini-like" AI architecture to enhance contextual understanding, memory, dynamic response generation, and integration with external knowledge.
-*   **Work Done This Session (May 10, Evening):**
-    *   **LLM Integration (`lib/llm.ts`):** Created a new module for interacting with a powerful LLM, including `generateLLMResponse` and a placeholder API client.
-    *   **Enhanced System Prompt (`lib/redis.ts`):** Replaced `STATIC_BASE_PROMPT_CONTENT` with a new "Grok-style" prompt designed for better reasoning, personality, and handling of complex scenarios.
-    *   **Chat History Summarization (`lib/redis.ts`):** Added `summarizeChatHistory` function using the LLM.
-    *   **General Knowledge Base Search (`lib/redis.ts`):** Added `searchKnowledgeBase` function and `KNOWLEDGE_BASE_INDEX_NAME` (placeholder implementation).
-    *   **External Data Integration (`lib/external.ts`):** Created module with placeholder `fetchProductPrices`.
-    *   **Centralized Types (`lib/types.ts`):** Created a new file for shared TypeScript types (`ChatMessage`, `ChatHistory`, etc.) and updated `lib/redis.ts`, `lib/llm.ts`, and `app/api/chat/route.ts` to use these types.
-    *   **Chat API Refactor (`app/api/chat/route.ts`):**
-        *   Replaced direct Gemini SDK calls with the new `generateLLMResponse` function.
-        *   Integrated logic for chat history summarization.
-        *   Added calls to `searchKnowledgeBase` for non-product queries and `fetchProductPrices` for product queries.
-        *   Updated `isPotentiallyGibberish` with more detailed logging for Rule 2.
-        *   Refined combo/set search logic in `performVectorQuery` to be more flexible.
-        *   Updated prompt for fictional products and complex queries in `lib/redis.ts`.
-*   **Key Considerations & Next Steps (for new thread/session):**
-    1.  **[ ] LLM and External API Configuration (Critical Priority):**
-        *   In `lib/llm.ts`, replace the placeholder `HypotheticalLLMAPIClient` and API URL with the actual SDK/client and endpoint for the chosen LLM (e.g., xAI Grok, OpenAI GPT-4, Google Gemini Pro/Flash).
-        *   In `lib/external.ts`, replace the placeholder `fetchProductPrices` implementation with a real API if available.
-        *   Ensure all necessary API keys (e.g., `XAI_API_KEY`, `PRICE_API_KEY`) are correctly set up in the environment.
-    2.  **[ ] Knowledge Base Implementation (High Priority):**
-        *   Create the `idx:beauty_knowledge` Upstash Vector index.
-        *   Develop a script/process to populate this index with embeddings of beauty articles, FAQs, skincare tips, etc.
-        *   Modify `searchKnowledgeBase` in `lib/redis.ts` to use a separate `Index` client instance configured for `idx:beauty_knowledge` for accurate querying.
-    3.  **[ ] Product Search Filtering in Chat API (High Priority):**
-        *   In `app/api/chat/route.ts`, within the `if (llmResult.is_product_query)` block, implement robust filtering of `productQueryResults` from Upstash Vector. This filtering should use `llmResult.attributes`, `llmResult.vendor`, and `llmResult.price_filter` to refine the product list returned to the user. This was previously handled by `performVectorQuery`'s internal logic, which needs to be adapted or reimplemented in the main route now that `performVectorQuery` is simpler.
-    4.  **[ ] Combo/Set Logic Refinement (Medium Priority):**
-        *   With the new LLM and prompt, re-evaluate how `llmResult.product_types` and `llmResult.requested_product_count` are determined for combo/set queries.
-        *   Adjust the product search loop in `app/api/chat/route.ts` to ensure it correctly assembles multiple distinct items if the LLM identifies them as part of a set/combo. The previous simulation still failed "Skincare set for dry skin".
-    5.  **[ ] `isPotentiallyGibberish` Diagnostics (Medium Priority):**
-        *   Analyze the detailed logs from the `isPotentiallyGibberish` function (Rule 2) after the next simulation run to understand why "asdfjkl;" was not caught. Adjust rules if necessary.
-    6.  **[ ] Simulation and Testing (Critical Ongoing):**
-        *   Run `simulate-chat.ts` (after configuring `tsconfig.json` for emit and compiling).
-        *   Update test cases and expectations in `simulate-chat.ts` to match the new Grok-style responses and functionalities.
-        *   Address any new failures or regressions identified.
-    7.  **[ ] Unit Testing (Medium Priority):**
-        *   Write Jest unit tests for the new modules (`lib/llm.ts`, `lib/external.ts`, `lib/types.ts`).
-        *   Update and expand unit tests for `lib/redis.ts` and the refactored `app/api/chat/route.ts`.
-    8.  **[ ] Review `ai_chat_final.md` and `ai_chat_todo.md`:** Align these planning documents with the new architecture and outstanding tasks.
+*   **Goal:** Implement, configure, and refine the new "Gemini-like" AI architecture (`gemini-1.5-flash` model) to pass all simulation tests in `simulate-chat.ts`. Also, implement requested UI/UX enhancements and ensure code quality.
+*   **Work Done This Session (May 11, Early Morning):**
+    *   **[x] ESLint Configuration:** Updated `.eslintrc.json` to ignore `lib/upstash-vector-reference.ts`.
+    *   **[x] Backend Logic (`app/api/chat/route.ts`):**
+        *   Modified product mapping to use a new `description` field for "reason for match" (derived from `llmResult.product_matches` or a fallback), instead of raw `textForBM25`.
+        *   Commented out a verbose `console.log` for `llmResult` to reduce console noise.
+        *   Removed unused `CURRENCY_SYMBOL` and `DEFAULT_LOCALE_FOR_CURRENCY` constants.
+    *   **[x] Type Definitions (`lib/types.ts`):**
+        *   Added `product_matches: Array<{ variantId: string; reasoning: string }>` to `LLMStructuredResponse`.
+    *   **[x] Frontend - Product Card (`components/ProductCard.tsx` & `styles/ChatInterface.module.css`):**
+        *   Changed `price` prop to type `number` and implemented USD currency formatting (e.g., "$43.00").
+        *   Updated description display to use a new CSS class `styles.productReasoning` (styled to be gray, subtle, italic).
+    *   **[x] Frontend - Chat Interface (`components/ChatInterface.tsx`):**
+        *   Expanded `suggestedQuestions` list.
+        *   Modified to display 5 random premade questions on initial load.
+    *   **[x] Frontend - Chat Message (`components/ChatMessage.tsx`):**
+        *   Removed "Bella is thinking..." text from the loading indicator.
+        *   Updated `Message` interface: `product_card.price` is now `number`.
+        *   Ensured `productCardData.price` is converted to `Number` in `parseAdvice`.
+    *   **[x] Frontend - Complementary Products (`components/ComplementaryProducts.tsx`):**
+        *   Corrected `price` prop passed to `ProductCard` to be a `number`.
+    *   **[x] Build & Linting:**
+        *   Successfully ran `npm run lint` and `npm run build` after all modifications, resolving any emergent issues.
+*   **Previous Work (May 10, Evening - Retained for context):**
+    *   Product prices in `ProductCardResponse` initially set to numbers (USD).
+    *   Product descriptions initially truncated.
+    *   Initial linting error fixes (various files).
+    *   Initial exclusion of `lib/upstash-vector-reference.ts` from build.
+    *   System prompt refinements for `requested_product_count`, price filter, "asdfjkl;" example.
+    *   Gibberish detection refinements.
+    *   Next.js cache cleared.
+*   **Current Status (End of Session - May 11, Early Morning - Post UI Changes & Simulation Run):**
+    *   UI/UX changes implemented as per latest requests.
+    *   Codebase is lint-free and builds successfully.
+    *   Simulation (`simulate-chat.ts`) run: **8 out of 16 test cases PASSING.** Key LLM-related issues persist.
+        *   **Passing:** Greetings (Hi, Thanks), General Question (What is skincare?), Basic Product Search (vegan lipstick), Product Search with Attribute (serum for dry skin), Multiple Types (cleanser and moisturizer - products shown are not ideal but count is correct), No Results (fictional item), Memory Query, General Question (chatbot name).
+*   **Key Outstanding Issues & Next Steps (for new thread/session - based on May 11 simulation):**
+    1.  **[ ] Resolve Remaining Failing Test Cases in `simulate-chat.ts` (Critical Priority):**
+        *   **Price Filter Queries (e.g., "cheap sunscreen under $30", "vegan and cruelty-free serum under $100"):**
+            *   `ai_understanding` often missing "price filter".
+            *   `advice` often missing "USD".
+            *   `product_card` expected `true`, but `complementary_products` (10 items) are returned. LLM not setting `requested_product_count` to 1.
+        *   **Vendor Query ("Planet Beauty brand moisturizer"):**
+            *   `product_card` expected `true`, but no products found/returned.
+        *   **Gibberish Handling ("asdfjkl;"):**
+            *   `ai_understanding` from LLM ("gibberish input") does not match direct `route.ts` response ("Unable to understand the query").
+            *   `advice` missing "more details".
+        *   **Fallback Logic / Specific Attribute Query ("Any good eye creams for dark circles?"):**
+            *   `ai_understanding` missing "dark circles".
+            *   `product_card` expected `true`, but `complementary_products` (10 items) are returned. LLM not setting `requested_product_count` to 1.
+        *   **Set/Combo Counts:**
+            *   "Skincare set for dry skin": Expected 3 `complementary_products`, Got 10.
+            *   "combo with cleanser and toner for oily skin": Expected 2 `complementary_products`, Got 1.
+        *   **Follow-up Clarification ("Is that moisturizer part of a kit?"):**
+            *   `advice` missing keyword "kit".
+        *   **Reason for Match (General LLM Task):** The LLM prompt needs to be updated to provide the `product_matches` field with `reasoning` for each product, which `app/api/chat/route.ts` now expects for product descriptions. This is crucial for the new UI.
+        *   **Action Plan for Next Session:**
+            *   **Intensive LLM Prompt Engineering (`lib/redis.ts` - `STATIC_BASE_PROMPT_CONTENT`):**
+                *   Prioritize rules for `requested_product_count` (especially for single items with filters).
+                *   Strengthen instructions for price filter text in `ai_understanding` and `advice`.
+                *   Ensure LLM includes all specific attributes from the query in `ai_understanding`.
+                *   Add instructions for the LLM to populate the `product_matches` field with `variantId` and `reasoning`.
+                *   Refine examples for sets, combos, and follow-up clarifications.
+            *   **Logic Review (`app/api/chat/route.ts`):**
+                *   Re-evaluate `isPotentiallyGibberish` if it's not catching "asdfjkl;" before LLM.
+                *   Verify product assignment logic based on `requested_product_count`.
+            *   **Data Investigation:** If vendor query persists, check vector store for "Planet Beauty" data.
+    2.  **[ ] Knowledge Base Implementation (High Priority - after simulation passes):**
+        *   Create `idx:beauty_knowledge` Upstash Vector index and populate it.
+        *   Update `searchKnowledgeBase` in `lib/redis.ts` to use a dedicated client for this index.
+    3.  **[ ] Unit Testing (Medium Priority):**
+        *   Write/rebuild Jest unit tests for `lib/llm.ts`, `lib/redis.ts`, and `app/api/chat/route.ts`.
+    4.  **[x] Update All Documentation:** (Completed in current session - May 11) Ensure `README.md`, `progress.md`, `actionable_todo.md`, `feedback.md`, and `ai_chat_final.md` are fully aligned with the final stable state.
 
 ### Phase 5: Chat Interface Implementation and Final Polish (Pending New Architecture Stability)
 (Details omitted for brevity - no changes)

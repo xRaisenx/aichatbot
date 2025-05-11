@@ -1,7 +1,7 @@
 // components/ProductComparison.tsx
 'use client';
 
-import { ProductCardResponse } from '../lib/types'; // Import the interface
+import { ProductCardResponse } from '../lib/types';
 
 interface ProductComparisonProps {
   products: ProductCardResponse[];
@@ -9,25 +9,22 @@ interface ProductComparisonProps {
 
 export function ProductComparison({ products }: ProductComparisonProps) {
   if (!products || products.length === 0) {
-    return null; // Don't render if no products to compare
+    return null;
   }
 
   return (
-    <div className="product-comparison-container border-t border-border-light dark:border-border-dark pt-3 mt-3">
-      <h3 className="text-lg font-semibold mb-2">Product Comparison</h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Comparison details will appear here once provided by the AI.</p> {/* Added placeholder text */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="product-comparison-container border-t border-border-light dark:border-border-dark pt-4 mt-4">
+      <h3 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">Product Comparison</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Compare key features of selected products.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {products.map((product, index) => (
-          <div key={index} className="border border-gray-300 dark:border-gray-600 p-3 rounded-md">
-            <h4 className="text-md font-semibold mb-1">{product.title}</h4>
-            {/* TODO: Display key attributes for comparison */}
-            <p className="text-sm text-gray-600 dark:text-gray-400">{product.description}</p>
-            <p className="text-sm font-bold mt-1">{product.price}</p>
-            {/* Add more comparison details here */}
+          <div key={index} className="border border-gray-200 dark:border-gray-700 p-4 rounded-lg bg-white dark:bg-gray-800">
+            <h4 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">{product.title}</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{product.description}</p>
+            <p className="text-md font-bold text-pink-600 dark:text-pink-400">${product.price.toFixed(2)}</p>
           </div>
         ))}
       </div>
-      {/* TODO: Add a summary or key differences */}
     </div>
   );
 }

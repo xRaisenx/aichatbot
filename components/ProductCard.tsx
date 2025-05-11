@@ -5,39 +5,63 @@ import styles from '../styles/ChatInterface.module.css';
 interface ProductCardProps {
   title: string;
   description: string;
-  price: string;
+  price: number; // Changed to number for consistency, formatted as string in UI
   image: string | null;
   landing_page: string;
   matches?: string;
-  onAddToCart?: (productId: string) => void; // Add prop
-  productId?: string; // Add productId (assumed to be part of metadata)
-  availableForSale?: boolean; // Add availability status
-  quantityAvailable?: number; // Add available quantity
+  onAddToCart?: (productId: string) => void; // Optional prop as in original
+  productId?: string; // Optional prop as in original
+  availableForSale?: boolean;
+  quantityAvailable?: number;
 }
 
-export function ProductCard({ title, description, price, image, landing_page, matches, onAddToCart, productId, availableForSale, quantityAvailable }: ProductCardProps) {
+export function ProductCard({
+  title,
+  description,
+  price,
+  image,
+  landing_page,
+  matches,
+  onAddToCart,
+  productId,
+  availableForSale,
+  quantityAvailable,
+}: ProductCardProps) {
   return (
     <div className={styles.productCard}>
-      {image && (
+      {image ? (
         <Image
+          src={image}
           alt={title}
-          loading="lazy"
+          className={styles.productImage}
           width={80}
           height={80}
+          loading="lazy"
+          sizes="(max-width: 768px) 80px, 80px"
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder-image.png'; // Fallback image
+          }}
+        />
+      ) : (
+        <Image
+          src="/placeholder-image.png"
+          alt="Placeholder"
           className={styles.productImage}
-          src={image}
+          width={80}
+          height={80}
+          loading="lazy"
           sizes="(max-width: 768px) 80px, 80px"
         />
       )}
       <div className={styles.productInfo}>
-        <h3 className={styles.productTitle}>{title}</h3>
+        <h3 className={styles.productTitle} style={{ fontSize: '0.9rem' }}>{title}</h3>
         <p className={styles.productDescription}>{description}</p>
-        <p className={styles.productPrice}>{price}</p>
+        <p className={styles.productPrice} style={{ fontSize: '1rem' }}>${price.toFixed(2)}</p>
         {availableForSale === false && (
-            <p className={styles.outOfStock}>Out of Stock</p>
+          <p className={styles.outOfStock}>Out of Stock</p>
         )}
-        {availableForSale === true && quantityAvailable !== undefined && quantityAvailable <= 5 && (
-             <p className={styles.lowStock}>Low Stock: {quantityAvailable} left!</p>
+        {availableForSale === true && quantityAvailable !== undefined && quantityAvailable <= 5 && quantityAvailable > 0 && (
+          <p className={styles.lowStock}>Low Stock: {quantityAvailable} left!</p>
         )}
         <div className={styles.productActions}>
           <a
@@ -51,7 +75,7 @@ export function ProductCard({ title, description, price, image, landing_page, ma
           <button
             className={styles.addToCartButton}
             onClick={() => productId && onAddToCart && onAddToCart(productId)}
-            disabled={!productId || !onAddToCart || availableForSale === false} // Disable if out of stock
+            disabled={!productId || !onAddToCart || availableForSale === false}
           >
             Add to Cart
           </button>

@@ -57,16 +57,24 @@ export interface ProductCardResponse {
  */
 export type LLMStructuredResponse = {
   ai_understanding: string;
-  search_keywords: string;
+  search_keywords: string[]; // Ensure this is an array
   advice: string;
   requested_product_count: number;
   product_types: string[];
   usage_instructions?: string;
-  price_filter?: number | null;
+  price_filter?: { // Updated structure
+    min_price?: number;
+    max_price?: number;
+    currency?: string;
+  } | null;
   sort_by_price?: boolean;
-  vendor?: string;
+  vendor?: string | null; // Allow null
   attributes?: string[];
   is_product_query: boolean;
+  is_combo_set_query?: boolean; // Added
+  is_fictional_product_query?: boolean; // Added
+  is_clarification_needed?: boolean; // Added
+  product_matches?: Array<{ variantId: string; reasoning: string }>; // New field for product-specific reasoning
 };
 
 /**

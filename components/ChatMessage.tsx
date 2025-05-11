@@ -1,6 +1,8 @@
+
 // components/ChatMessage.tsx
+
 import DOMPurify from 'isomorphic-dompurify';
-import { useEffect } from 'react'; // Add useEffect import
+import { useEffect } from 'react';
 import { ProductCardResponse } from '../lib/types';
 import styles from '../styles/ChatInterface.module.css';
 import { ComplementaryProducts } from './ComplementaryProducts';
@@ -16,7 +18,7 @@ export interface Message {
   product_card?: {
     title: string;
     description: string;
-    price: string;
+    price: number;
     image: string | null;
     landing_page: string;
     matches?: string;
@@ -44,14 +46,27 @@ interface ChatMessageProps {
 export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
-  // Log ai_understanding only when message.ai_understanding changes
   useEffect(() => {
     if (message.ai_understanding) {
       console.log('AI Understanding:', message.ai_understanding);
     }
-  }, [message.ai_understanding]); // Dependency array ensures it runs only when ai_understanding changes
+  }, [message.ai_understanding]);
 
-  // Function to parse advice text for legacy PRODUCT_CARD_START/END markers
+  useEffect(() => {
+    if (message.isLoading) {
+      console.log('Rendering typing indicator for message:', message.id);
+    }
+  }, [message.isLoading, message.id]);
+
+  useEffect(() => {
+    if (message.product_card) {
+      console.log('Rendering product card:', message.product_card);
+    }
+    if (message.complementary_products) {
+      console.log('Rendering complementary products:', message.complementary_products);
+    }
+  }, [message.product_card, message.complementary_products]);
+
   const parseAdvice = (advice: string) => {
     const productCardRegex = /PRODUCT_CARD_START(\{.*?\})PRODUCT_CARD_END/;
     const match = advice.match(productCardRegex);
@@ -62,13 +77,15 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
       try {
         const productCardData = JSON.parse(match[1]);
         parsedProductCard = {
-          title: productCardData.title,
-          description: productCardData.description,
-          price: productCardData.price,
-          image: productCardData.image,
-          landing_page: productCardData.landing_page,
-          matches: productCardData.matches,
-          variantId: productCardData.variantId || productCardData.landing_page.split('/').pop(),
+          title: productCardData.title || 'Untitled Product',
+          description: productCardData.description || '',
+          price: Number(productCardData.price) || 0,
+          image: productCardData.image || null,
+          landing_page: productCardData.landing_page || '#',
+          matches: productCardData.matches || '',
+          variantId: productCardData.variantId || productCardData.landing_page?.split('/').pop() || '',
+          availableForSale: productCardData.availableForSale ?? true,
+          quantityAvailable: productCardData.quantityAvailable ?? undefined,
         };
         cleanedAdvice = advice.replace(productCardRegex, '').trim();
       } catch (error) {
@@ -79,27 +96,28 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
     return { cleanedAdvice, parsedProductCard };
   };
 
-  // Sanitize HTML and parse advice
-  const sanitizeOptions = { USE_PROFILES: { html: true }, ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li'] };
-  const { cleanedAdvice, parsedProductCard } = message.advice ? parseAdvice(message.advice) : { cleanedAdvice: '', parsedProductCard: message.product_card };
+  const sanitizeOptions = {
+    USE_PROFILES: { html: true },
+    ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li'],
+  };
+  const { cleanedAdvice, parsedProductCard } = message.advice
+    ? parseAdvice(message.advice)
+    : { cleanedAdvice: '', parsedProductCard: message.product_card };
   const sanitizedAdvice = cleanedAdvice ? DOMPurify.sanitize(cleanedAdvice, sanitizeOptions) : '';
   const sanitizedText = message.text ? DOMPurify.sanitize(message.text, sanitizeOptions) : '';
 
-  // --- Loading Indicator ---
   if (message.isLoading) {
     return (
-      <div className={`${styles['message-base']} ${styles['bot-message']} ${styles.messageBubble} flex items-center space-x-2 opacity-80`}>
-        <div className={styles.typingIndicator}>
-          <span className="typing-dot animate-bounce [animation-delay:-0.3s]"></span>
-          <span className="typing-dot animate-bounce [animation-delay:-0.15s]"></span>
-          <span className="typing-dot animate-bounce"></span>
+      <div className={`${styles['message-base']} ${styles['bot-message']} ${styles.messageBubble} ${styles['typing-container']}`}>
+        <div className={styles['typing-dots']}>
+          <span className={`${styles['typing-dot']} animate-bounce`} style={{ animationDelay: '0s' }}></span>
+          <span className={`${styles['typing-dot']} animate-bounce`} style={{ animationDelay: '0.2s' }}></span>
+          <span className={`${styles['typing-dot']} animate-bounce`} style={{ animationDelay: '0.4s' }}></span>
         </div>
-        <span className="text-sm italic">Bella is thinking...</span>
       </div>
     );
   }
 
-  // --- Error Message Styling ---
   if (message.isError) {
     return (
       <div className={`${styles['message-base']} ${styles['bot-message']} ${styles.messageBubble} bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300`}>
@@ -109,18 +127,11 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
     );
   }
 
-  // --- Standard User/Bot Message ---
   return (
     <div className={`${styles['message-base']} ${isUser ? styles['user-message'] : styles['bot-message']} ${styles.messageBubble}`}>
-      {!isUser && message.ai_understanding && (
-        null // Keep this as null if you don’t want to display ai_understanding
-        // Optionally, render it conditionally:
-        // <div className="text-sm text-gray-500 italic">{message.ai_understanding}</div>
-      )}
+      {!isUser && message.ai_understanding && null}
 
-      {isUser && message.text && (
-        <div>{message.text}</div>
-      )}
+      {isUser && message.text && <div>{message.text}</div>}
 
       {!isUser && parsedProductCard && (
         <div className="mt-3 mb-1">
@@ -128,7 +139,7 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
             title={parsedProductCard.title}
             description={parsedProductCard.description}
             price={parsedProductCard.price}
-            image={parsedProductCard.image}
+            image={parsedProductCard.image || '/pb_logo.svg'}
             landing_page={parsedProductCard.landing_page}
             matches={parsedProductCard.matches}
             productId={parsedProductCard.variantId}
@@ -147,7 +158,19 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
 
       {!isUser && message.complementary_products && message.complementary_products.length > 0 && (
         <div className="mt-3 mb-1">
-          <ComplementaryProducts products={message.complementary_products} />
+          <ComplementaryProducts
+            products={message.complementary_products.map((product) => ({
+              title: product.title,
+              description: product.description,
+              price: product.price,
+              image: product.image || '/pb_logo.svg',
+              landing_page: product.landing_page,
+              matches: product.matches,
+              variantId: product.variantId,
+              availableForSale: product.availableForSale ?? true,
+              quantityAvailable: product.quantityAvailable,
+            }))}
+          />
         </div>
       )}
 

@@ -1,27 +1,25 @@
+// simulate-chat.ts
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
-import { v4 as uuidv4 } from 'uuid'; // For generating unique session IDs
+import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
-const CHAT_API_URL = 'http://localhost:3000/api/chat'; // Adjust if needed
-
-// --- Type Definitions (aligned with app/api/chat/route.ts) ---
+const CHAT_API_URL = 'http://localhost:3000/api/chat';
 
 type ChatHistoryItem = {
-  role: 'user' | 'bot' | 'model';
+  role: 'user' | 'bot' | 'model' | 'assistant' | 'system';
   text?: string;
+  content?: string;
 };
 
 interface ProductCard {
   title: string;
   description: string;
-  price: string; // Assuming price is a string like "$10.99"
+  price: string | number; // Price is now number (USD)
   image: string | null;
   landing_page: string;
   variantId: string;
-  // Potentially add vendor if the API can return it directly on the card
-  // vendor?: string; 
 }
 
 interface ApiChatResponse {
@@ -33,8 +31,6 @@ interface ApiChatResponse {
   history: ChatHistoryItem[];
 }
 
-// --- Test Case Definitions ---
-
 interface SimulationTestCase {
   description: string;
   query: string;
@@ -42,10 +38,10 @@ interface SimulationTestCase {
   expected_advice_keywords?: string[];
   expected_product_card_present?: boolean;
   expected_complementary_products_count?: number;
-  expected_product_card_properties?: { // For checking specific details of the product_card
+  expected_product_card_properties?: {
     title_contains?: string[];
-    max_price?: number; // e.g., for "under $15"
-    vendor_name_includes?: string; // If we can infer vendor from title or a dedicated field
+    max_price?: number; // Max price in USD
+    vendor_name_includes?: string;
   };
   expected_no_products?: boolean;
   is_greeting?: boolean;
@@ -57,7 +53,7 @@ const testCases: SimulationTestCase[] = [
     query: "Hi",
     is_greeting: true,
     expected_ai_understanding_keywords: ["greeting"],
-    expected_advice_keywords: ["how can i assist"], // Adjusted: API returns "Hi! How can I assist you today?"
+    expected_advice_keywords: ["how can i assist"],
     expected_no_products: true,
   },
   {
@@ -65,7 +61,7 @@ const testCases: SimulationTestCase[] = [
     query: "Thanks",
     is_greeting: true,
     expected_ai_understanding_keywords: ["greeting"],
-    expected_advice_keywords: ["you're welcome"], 
+    expected_advice_keywords: ["you're welcome"],
     expected_no_products: true,
   },
   {
@@ -83,13 +79,13 @@ const testCases: SimulationTestCase[] = [
     expected_product_card_present: true,
     expected_complementary_products_count: 0,
     expected_product_card_properties: {
-      title_contains: ["lipstick"], 
+      title_contains: ["lipstick"],
     },
   },
   {
     description: "Product Search with Attribute: 'serum for dry skin'",
     query: "serum for dry skin",
-    expected_ai_understanding_keywords: ["product query", "serum"],
+    expected_ai_understanding_keywords: ["product query", "serum", "dry skin"],
     expected_advice_keywords: ["serum", "dry skin"],
     expected_product_card_present: true,
     expected_product_card_properties: {
@@ -101,89 +97,95 @@ const testCases: SimulationTestCase[] = [
     query: "I need a cleanser and moisturizer",
     expected_ai_understanding_keywords: ["product query", "cleanser", "moisturizer"],
     expected_advice_keywords: ["cleanser", "moisturizer"],
-    expected_product_card_present: false, 
-    expected_complementary_products_count: 2, 
+    expected_product_card_present: false,
+    expected_complementary_products_count: 2,
   },
   {
     description: "No Results Scenario (Specific Item): 'Find unobtainium face cream'",
     query: "Find unobtainium face cream",
     expected_ai_understanding_keywords: ["query for fictional product"],
-    expected_advice_keywords: ["fictional material", "can't find", "specific benefits"],
+    expected_advice_keywords: ["fictional material", "can't find", "hydration"],
     expected_product_card_present: false,
     expected_no_products: true,
   },
   {
-    description: "Product Search with Price Filter: 'cheap sunscreen under 300 Pesos' (assuming 1 USD = 20 Pesos)",
-    query: "cheap sunscreen under 300 Pesos",
-    expected_ai_understanding_keywords: ["product query", "sunscreen", "cheap"],
-    expected_advice_keywords: ["sunscreen", "under", "pesos", "usd"], // Advice mentions both
-    expected_product_card_present: false, 
-    expected_no_products: true, 
+    description: "Product Search with Price Filter: 'cheap sunscreen under $30'",
+    query: "cheap sunscreen under $30",
+    expected_ai_understanding_keywords: ["product query", "sunscreen", "cheap", "price filter"],
+    expected_advice_keywords: ["sunscreen", "under", "usd"],
+    expected_product_card_present: true,
+    expected_product_card_properties: {
+      title_contains: ["sunscreen"],
+      max_price: 30,
+    },
+    expected_no_products: false,
   },
   {
     description: "Product Search with Vendor: 'Planet Beauty brand moisturizer'",
     query: "Planet Beauty brand moisturizer",
-    expected_ai_understanding_keywords: ["product query", "moisturizer"],
+    expected_ai_understanding_keywords: ["product query", "moisturizer", "Planet Beauty"],
     expected_advice_keywords: ["Planet Beauty", "moisturizer"],
-    expected_product_card_present: false, 
-    expected_no_products: true,
+    expected_product_card_present: true,
+    expected_product_card_properties: {
+      title_contains: ["moisturizer"],
+      vendor_name_includes: "Planet Beauty", // Test will check if title contains "Planet Beauty"
+    },
+    expected_no_products: false,
   },
   {
-    description: "Invalid/Edge Case Input: 'asdfjkl;' (expecting early gibberish check)",
+    description: "Invalid/Edge Case Input: 'asdfjkl;'",
     query: "asdfjkl;",
-    expected_ai_understanding_keywords: ["Unable to understand", "query"], // From early exit
-    expected_advice_keywords: ["sorry", "didn't understand", "rephrase", "more details"], // From early exit
+    expected_ai_understanding_keywords: ["Unable to understand", "query"], // Updated to match route.ts
+    expected_advice_keywords: ["sorry", "didn't understand", "rephrase", "more details"], // Updated
     expected_no_products: true,
     expected_product_card_present: false,
   },
   {
     description: "Fallback Logic - General Skincare: 'Any good eye creams for dark circles?'",
     query: "Any good eye creams for dark circles?",
-    expected_ai_understanding_keywords: ["product query", "eye cream"],
+    expected_ai_understanding_keywords: ["product query", "eye cream", "dark circles"],
     expected_advice_keywords: ["eye creams", "dark circles"],
-    expected_product_card_present: true, 
+    expected_product_card_present: true, // Expecting a single card now
     expected_product_card_properties: {
-      title_contains: ["eye cream", "eye"],
+      title_contains: ["eye cream", "eye"], // Keywords to find in title
     },
   },
   {
-    description: "Product Search: Complex with multiple attributes and price filter (Pesos)",
-    query: "I'm looking for a vegan and cruelty-free serum, preferably under 1000 Pesos.",
+    description: "Product Search: Complex with multiple attributes and price filter",
+    query: "I'm looking for a vegan and cruelty-free serum, preferably under $100.",
     expected_ai_understanding_keywords: ["product query", "vegan", "cruelty-free", "serum", "price filter"],
-    expected_advice_keywords: ["vegan", "cruelty-free", "serum", "under 1000 pesos", "usd"], 
-    expected_product_card_present: false, 
-    expected_no_products: true, // Hard to guarantee a fixture match for this specific combo
+    expected_advice_keywords: ["vegan", "cruelty-free", "serum", "usd"],
+    expected_product_card_present: true, // Expecting a single card
+    expected_product_card_properties: {
+      title_contains: ["serum"],
+      max_price: 100,
+    },
+    expected_no_products: false,
   },
-  // --- New Test Cases for Combo/Set, Clarifications, Memory ---
   {
     description: "Product Search: 'Skincare set for dry skin'",
     query: "I need a skincare set for dry skin",
     expected_ai_understanding_keywords: ["product query", "set", "dry skin"],
     expected_advice_keywords: ["skincare set", "dry skin"],
-    expected_product_card_present: false, // Expecting multiple items in complementary_products
-    expected_complementary_products_count: 3, // Expecting e.g., cleanser, serum, moisturizer
-    // We might not be able to guarantee specific product titles for a "set" without knowing the exact inventory
-    // and how the "Explicit Set/Kit Search" logic performs.
-    // For now, focus on the count and the AI understanding.
+    expected_product_card_present: false,
+    expected_complementary_products_count: 3, // Sticking to 3 as per prompt
   },
   {
-    description: "Memory Query: 'What were we talking about?' (after discussing dry skin set)",
+    description: "Memory Query: 'What were we talking about?'",
     query: "What were we talking about?",
     expected_ai_understanding_keywords: ["memory query"],
-    expected_advice_keywords: ["skincare set", "dry skin"], // Expecting it to remember the previous topic
+    expected_advice_keywords: ["skincare set", "dry skin"], // Example, will depend on actual history
     expected_no_products: true,
   },
   {
-    description: "Follow-up Clarification: 'Is that moisturizer part of a kit?' (assuming a moisturizer was shown)",
+    description: "Follow-up Clarification: 'Is that moisturizer part of a kit?'",
     query: "Is that moisturizer part of a kit?",
-    // This test case is harder to make deterministic without knowing exactly what product was shown previously.
-    // The AI understanding and advice are key.
     expected_ai_understanding_keywords: ["follow-up clarification"],
-    expected_advice_keywords: ["moisturizer", "kit", "set"], // Should clarify about the specific product
-    expected_no_products: true, // Not a new product search by default
+    expected_advice_keywords: ["moisturizer", "kit", "set"],
+    expected_no_products: true,
   },
   {
-    description: "General Question: 'What's your name?' (testing refined prompt)",
+    description: "General Question: 'What's your name?'",
     query: "What's your name?",
     expected_ai_understanding_keywords: ["general question", "chatbot"],
     expected_advice_keywords: ["planet beauty", "ai shopping assistant"],
@@ -195,22 +197,22 @@ const testCases: SimulationTestCase[] = [
     expected_ai_understanding_keywords: ["product query", "combo", "cleanser", "toner", "oily skin"],
     expected_advice_keywords: ["combo", "cleanser", "toner", "oily skin"],
     expected_product_card_present: false,
-    expected_complementary_products_count: 2, // Expecting a cleanser and a toner
+    expected_complementary_products_count: 2,
   }
 ];
-// Note on currency: Test cases updated assuming 1 USD = 20 Pesos.
-// The API (app/api/chat/route.ts) currently has a TODO for handling USD price_filter from Gemini
-// against Peso product prices. The price filter in the API is temporarily bypassed.
-// These simulation checks for max_price will verify if the *returned product card* (which has Peso price)
-// meets the Peso-based expectation, independent of the API's current price filtering capability.
 
-// --- Utility Functions ---
-function parsePriceFromString(priceStr: string): number {
+function parsePriceFromString(priceStr: string | number): number {
+  if (typeof priceStr === 'number') return priceStr;
   if (!priceStr) return NaN;
-  return parseFloat(priceStr.replace(/[^0-9.]/g, ''));
+  // This regex handles cases like "$25.99" or "25.99 USD"
+  const match = String(priceStr).match(/[\d.]+/);
+  if (match && match[0]) {
+    return parseFloat(match[0]);
+  }
+  return NaN;
 }
 
-// --- Evaluation Logic ---
+
 function evaluateResponse(
   responseBody: ApiChatResponse,
   testCase: SimulationTestCase
@@ -218,7 +220,6 @@ function evaluateResponse(
   const evaluationDetails: string[] = [];
   let overallSuccess = true;
 
-  // 1. Check ai_understanding
   if (testCase.expected_ai_understanding_keywords) {
     const understandingLower = responseBody.ai_understanding.toLowerCase();
     for (const keyword of testCase.expected_ai_understanding_keywords) {
@@ -231,7 +232,6 @@ function evaluateResponse(
     }
   }
 
-  // 2. Check advice
   if (testCase.expected_advice_keywords) {
     const adviceLower = responseBody.advice.toLowerCase();
     for (const keyword of testCase.expected_advice_keywords) {
@@ -247,7 +247,6 @@ function evaluateResponse(
   const productCardPresent = !!responseBody.product_card;
   const complementaryProductsCount = responseBody.complementary_products?.length || 0;
 
-  // 3. Check product_card presence
   if (testCase.expected_product_card_present !== undefined) {
     if (productCardPresent !== testCase.expected_product_card_present) {
       evaluationDetails.push(`FAIL: product_card presence. Expected: ${testCase.expected_product_card_present}, Got: ${productCardPresent}`);
@@ -257,7 +256,6 @@ function evaluateResponse(
     }
   }
 
-  // 4. Check complementary_products count
   if (testCase.expected_complementary_products_count !== undefined) {
     if (complementaryProductsCount !== testCase.expected_complementary_products_count) {
       evaluationDetails.push(`FAIL: complementary_products count. Expected: ${testCase.expected_complementary_products_count}, Got: ${complementaryProductsCount}`);
@@ -267,17 +265,15 @@ function evaluateResponse(
     }
   }
 
-  // 5. Check for no products (if specified)
   if (testCase.expected_no_products) {
     if (productCardPresent || complementaryProductsCount > 0) {
-      evaluationDetails.push(`FAIL: Expected no products, but found product_card and/or complementary_products.`);
+      evaluationDetails.push(`FAIL: Expected no products, but found product_card present: ${productCardPresent} and/or complementary_products count: ${complementaryProductsCount}.`);
       overallSuccess = false;
     } else {
       evaluationDetails.push(`PASS: Correctly found no products as expected.`);
     }
   }
 
-  // 6. Special check for greetings
   if (testCase.is_greeting) {
     if (productCardPresent || complementaryProductsCount > 0) {
       evaluationDetails.push(`FAIL: Greeting scenario returned products. product_card: ${productCardPresent}, complementary_products: ${complementaryProductsCount}`);
@@ -289,7 +285,6 @@ function evaluateResponse(
     }
   }
 
-  // 7. Check product_card_properties
   if (testCase.expected_product_card_properties && responseBody.product_card) {
     const card = responseBody.product_card;
     const props = testCase.expected_product_card_properties;
@@ -305,23 +300,22 @@ function evaluateResponse(
         }
       }
       if (foundAllTitleKeywords) {
-         evaluationDetails.push(`PASS: product_card.title contains expected keywords: "${props.title_contains.join(', ')}".`);
+        evaluationDetails.push(`PASS: product_card.title contains expected keywords: "${props.title_contains.join(', ')}".`);
       }
     }
 
     if (props.max_price !== undefined) {
-      const priceNum = parsePriceFromString(card.price);
+      const priceNum = parsePriceFromString(card.price); // Price is now number (USD)
       if (isNaN(priceNum) || priceNum > props.max_price) {
-        evaluationDetails.push(`FAIL: product_card.price > ${props.max_price}. Got: "${card.price}" (parsed as ${priceNum})`);
+        evaluationDetails.push(`FAIL: product_card.price (${priceNum}) > ${props.max_price} USD. Got: "${card.price}"`);
         overallSuccess = false;
       } else {
-        evaluationDetails.push(`PASS: product_card.price (${card.price}) is <= ${props.max_price}.`);
+        evaluationDetails.push(`PASS: product_card.price (${priceNum}) is <= ${props.max_price} USD.`);
       }
     }
 
     if (props.vendor_name_includes) {
-      // Assuming vendor name might be in the title or a dedicated (currently not defined) vendor field.
-      // For now, checking title only.
+      // Assuming vendor name might be in the title if not a separate field in ProductCard
       const titleLower = card.title.toLowerCase();
       if (!titleLower.includes(props.vendor_name_includes.toLowerCase())) {
         evaluationDetails.push(`FAIL: product_card.title does not include vendor '${props.vendor_name_includes}'. Got: "${card.title}"`);
@@ -330,25 +324,21 @@ function evaluateResponse(
         evaluationDetails.push(`PASS: product_card.title includes vendor '${props.vendor_name_includes}'.`);
       }
     }
-  } else if (testCase.expected_product_card_properties && !responseBody.product_card) {
+  } else if (testCase.expected_product_card_properties && !responseBody.product_card && testCase.expected_product_card_present) {
     evaluationDetails.push(`FAIL: Expected product_card properties but no product_card was present.`);
     overallSuccess = false;
   }
 
-
   if (evaluationDetails.length === 0) {
     evaluationDetails.push("No specific checks ran for this test case based on its definition.");
   }
-  if (overallSuccess && !evaluationDetails.some(d => d.startsWith("FAIL:"))) { // Ensure no fails before overall pass
+  if (overallSuccess && !evaluationDetails.some(d => d.startsWith("FAIL:"))) {
     evaluationDetails.push("Overall PASS for implemented checks.");
   }
-
 
   return { success: overallSuccess, details: evaluationDetails };
 }
 
-
-// --- Main Simulation Logic ---
 async function runChatSimulation() {
   console.log('Starting chat simulation with enhanced evaluation...\n');
 
@@ -369,19 +359,20 @@ async function runChatSimulation() {
         body: JSON.stringify({
           query: testCase.query,
           history: chatHistory,
-          sessionId: sessionId,
         }),
       });
 
       console.log(`Chat API Response Status: ${response.status}`);
       if (!response.ok) {
         const errorBody = await response.text();
-        console.error(`Chat simulation failed for "${testCase.description}" with status ${response.status}: ${errorBody}`);
-        continue; 
+        console.error(`Chat simulation failed for "${testCase.description}" with status ${response.status}: ${errorBody.substring(0, 500)}`);
+        chatHistory.push({ role: 'user', content: testCase.query });
+        chatHistory.push({ role: 'assistant', content: `API Error: ${response.status} - ${errorBody.substring(0,100)}`});
+        continue;
       }
 
       const responseBody = await response.json() as ApiChatResponse;
-      
+
       console.log(`AI Understanding: ${responseBody.ai_understanding}`);
       console.log(`Advice: ${responseBody.advice.substring(0, 200)}${responseBody.advice.length > 200 ? '...' : ''}`);
       if (responseBody.product_card) {
@@ -389,23 +380,27 @@ async function runChatSimulation() {
       }
       if (responseBody.complementary_products && responseBody.complementary_products.length > 0) {
         console.log(`Complementary Products: ${responseBody.complementary_products.length} items`);
-        responseBody.complementary_products.slice(0,2).forEach(p => console.log(`  - ${p.title}`));
+        responseBody.complementary_products.slice(0, 2).forEach(p => console.log(`  - ${p.title}`));
       }
 
       const evaluationResult = evaluateResponse(responseBody, testCase);
       console.log(`Evaluation: ${evaluationResult.success ? 'PASS' : 'FAIL'}`);
       evaluationResult.details.forEach(detail => console.log(`  - ${detail}`));
 
-      chatHistory = responseBody.history || [];
-      chatHistory = chatHistory.map(item => ({
-          role: item.role,
-          text: item.text || "" 
-      }));
+      // Update history from the actual API response
+      chatHistory = responseBody.history ? responseBody.history.map(item => ({
+        role: item.role,
+        // Ensure content is always a string, even if API returns undefined/null for text/content
+        content: item.content || item.text || "" 
+      })) : [];
 
-      await new Promise(resolve => setTimeout(resolve, 300));
+
+      await new Promise(resolve => setTimeout(resolve, 300)); // Delay between API calls
 
     } catch (error) {
       console.error(`Error during chat simulation for "${testCase.description}":`, error);
+      chatHistory.push({ role: 'user', content: testCase.query });
+      chatHistory.push({ role: 'assistant', content: `Simulation Script Error: ${String(error).substring(0,100)}`});
       continue;
     }
   }

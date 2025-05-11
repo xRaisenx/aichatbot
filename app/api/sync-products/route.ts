@@ -1,5 +1,5 @@
 import { AdminFetchResult, fetchAdminShopifyProducts } from '@lib/shopify-admin'; // Removed AdminShopifyProductNode
-import { Index as VectorIndex } from '@upstash/vector'; 
+import { Index as VectorIndex } from '@upstash/vector';
 import { NextResponse } from 'next/server';
 // generateEmbeddings is no longer needed for sparse-only
 // import { generateEmbeddings } from '../../../lib/gemini'; 
@@ -26,9 +26,9 @@ type SparseVectorRecord = {
 
 // Initialize Upstash vector client
 // Explicitly type the index with the metadata structure
-const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_URL && process.env.UPSTASH_VECTOR_TOKEN
+const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_TOKEN
   ? new VectorIndex<VectorMetadata>({
-      url: (process.env.UPSTASH_VECTOR_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''), 
+      url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''), 
       token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''), 
     })
   : null;
@@ -145,6 +145,21 @@ async function upsertWithRetry(
   }
 }
 
+// Add a function to fetch MXN to USD exchange rate
+async function fetchExchangeRate(from: string, to: string): Promise<number> {
+  try {
+    const res = await fetch(`https://api.exchangerate.host/convert?from=${from}&to=${to}`);
+    const data = await res.json();
+    if (data && data.info && data.info.rate) {
+      return data.info.rate;
+    }
+    throw new Error('Invalid exchange rate response');
+  } catch (err) {
+    console.error('Failed to fetch exchange rate:', err);
+    return 1; // fallback: no conversion
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get('secret');
@@ -160,6 +175,22 @@ export async function GET(request: Request) {
   let errors = 0;
   const vectorUpsertBatch: SparseVectorRecord[] = []; // Use SparseVectorRecord
 
+  let exchangeRate = 1;
+  let storeCurrency = 'USD';
+  try {
+    // Fetch the first page to get the currency code
+    const firstResult: AdminFetchResult = await fetchAdminShopifyProducts(null);
+    if (firstResult.products.length > 0) {
+      storeCurrency = firstResult.products[0].priceRange.minVariantPrice.currencyCode || 'USD';
+    }
+    if (storeCurrency !== 'USD') {
+      exchangeRate = await fetchExchangeRate(storeCurrency, 'USD');
+      console.log(`Exchange rate ${storeCurrency}->USD:`, exchangeRate);
+    }
+  } catch (err) {
+    console.error('Error determining store currency or exchange rate:', err);
+  }
+
   try {
     do {
       const result: AdminFetchResult = await fetchAdminShopifyProducts(cursor);
@@ -172,6 +203,15 @@ export async function GET(request: Request) {
           const tags = product.tags ? product.tags.map(tag => tag.trim()).join(', ') : '';
           const textForBM25 = `${product.title} ${product.descriptionHtml || ''} ${tags} ${product.vendor || ''} ${productType || ''}`.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
+          const originalPrice = parseFloat(product.priceRange.minVariantPrice.amount);
+          const priceUSD = storeCurrency === 'USD' ? originalPrice : (originalPrice * exchangeRate).toFixed(2);
+
+          // Format priceUSD to always have two decimal places
+          // Shopify prices are usually in full currency units, not cents, via Admin API unless specified.
+          // If they were in cents, division by 100 would be needed here.
+          // Assuming priceUSD is already in the correct main currency unit (e.g., 25.99 not 2599 for $25.99)
+          const formattedPriceUSD: string = Number(priceUSD).toFixed(2);
+
           // Prepare sparse vector data
           const sparseVectorData: SparseVectorRecord = {
             id: product.id,
@@ -183,7 +223,7 @@ export async function GET(request: Request) {
               vendor: product.vendor || '',
               productType: productType || '',
               tags: product.tags ? product.tags.map(tag => tag.trim()) : [],
-              price: product.priceRange.minVariantPrice.amount,
+              price: formattedPriceUSD, // Store as USD with two decimals
               imageUrl: product.images?.edges[0]?.node.url || '',
               productUrl: product.onlineStoreUrl || `/products/${product.handle}`, // Prefer onlineStoreUrl if available
               variantId: product.variants?.edges[0]?.node.id || product.id, // Fallback to product.id if no variant
