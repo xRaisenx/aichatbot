@@ -42,6 +42,7 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
 
 ### Phase 4: New Architecture Implementation, Caching & Refinement (Ongoing - May 12, 2025)
 
+<<<<<<< HEAD
 *   **Goal:** Implement, configure, and refine the new "Gemini-like" AI architecture (`gemini-1.5-flash` model), integrate Redis caching and dynamic knowledge base, pass all simulation tests in `simulate-chat.ts`, implement requested UI/UX enhancements, and ensure code quality.
 *   **Work Done This Session (May 11-12):**
     *   **[x] Redis Caching & Knowledge Base (`lib/redis.ts`, `app/api/chat/route.ts`, `lib/llm.ts`):**
@@ -75,6 +76,44 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
 *   **Current Status (End of Session - May 12, 2025 - After Caching/KB Implementation):**
     *   Caching and dynamic knowledge base (Redis-based) implemented.
     *   `is_product_query` and `userId` bugs addressed.
+=======
+*   **Goal:** Implement, configure, and refine the new "Gemini-like" AI architecture (`gemini-1.5-flash` model) to pass all simulation tests in `simulate-chat.ts`. Also, implement requested UI/UX enhancements and ensure code quality.
+*   **Work Done This Session (May 11, Early Morning):**
+    *   **[x] ESLint Configuration:** Updated `.eslintrc.json` to ignore `lib/upstash-vector-reference.ts`.
+    *   **[x] Backend Logic (`app/api/chat/route.ts`):**
+        *   Modified product mapping to use a new `description` field for "reason for match" (derived from `llmResult.product_matches` or a fallback), instead of raw `textForBM25`.
+        *   Commented out a verbose `console.log` for `llmResult` to reduce console noise.
+        *   Removed unused `CURRENCY_SYMBOL` and `DEFAULT_LOCALE_FOR_CURRENCY` constants.
+    *   **[x] Type Definitions (`lib/types.ts`):**
+        *   Added `product_matches: Array<{ variantId: string; reasoning: string }>` to `LLMStructuredResponse`.
+    *   **[x] Frontend - Product Card (`components/ProductCard.tsx` & `styles/ChatInterface.module.css`):**
+        *   Changed `price` prop to type `number` and implemented USD currency formatting (e.g., "$43.00").
+        *   Updated description display to use a new CSS class `styles.productReasoning` (styled to be gray, subtle, italic).
+    *   **[x] Frontend - Chat Interface (`components/ChatInterface.tsx`):**
+        *   Expanded `suggestedQuestions` list.
+        *   Modified to display 5 random premade questions on initial load.
+    *   **[x] Frontend - Chat Message (`components/ChatMessage.tsx`):**
+        *   Removed "Bella is thinking..." text from the loading indicator.
+        *   Updated `Message` interface: `product_card.price` is now `number`.
+        *   Ensured `productCardData.price` is converted to `Number` in `parseAdvice`.
+    *   **[x] Frontend - Complementary Products (`components/ComplementaryProducts.tsx`):**
+        *   Corrected `price` prop passed to `ProductCard` to be a `number`.
+    *   **[x] AI-Generated Suggested Questions (Refined):**
+        *   Updated API endpoint `/api/chat/generate-suggested-questions` to dynamically generate 4 (instead of 5) more creative welcome questions using the LLM (adjusted temperature to 0.9, topP to 0.80, model to 'gemini-1.5-flash', and refined prompt).
+        *   Updated `components/ChatInterface.tsx` to fetch and display 4 questions from this endpoint, with updated fallback questions.
+    *   **[x] Build & Linting:**
+        *   Successfully ran `npm run lint` and `npm run build` after all modifications, resolving any emergent issues (including unused variable in new API route).
+*   **Previous Work (May 10, Evening - Retained for context):**
+    *   Product prices in `ProductCardResponse` initially set to numbers (USD).
+    *   Product descriptions initially truncated.
+    *   Initial linting error fixes (various files).
+    *   Initial exclusion of `lib/upstash-vector-reference.ts` from build.
+    *   System prompt refinements for `requested_product_count`, price filter, "asdfjkl;" example.
+    *   Gibberish detection refinements.
+    *   Next.js cache cleared.
+*   **Current Status (End of Session - May 11, Early Morning - Post UI Changes & Simulation Run):**
+    *   UI/UX changes implemented as per latest requests.
+>>>>>>> 64a827b9f867e23e5563b1f13d65920ff791ff11
     *   Codebase is lint-free and builds successfully.
     *   Simulation (`simulate-chat.ts`) run: **(To be re-evaluated after full testing of new features)**. Key LLM-related issues likely persist and are the next focus.
         *   **Passing (from May 11):** Greetings, General Question (skincare), Basic Product Search (vegan lipstick), Attribute Search (serum for dry skin), Multiple Types (cleanser/moisturizer - count correct), No Results (fictional), Memory Query, Chatbot Name.

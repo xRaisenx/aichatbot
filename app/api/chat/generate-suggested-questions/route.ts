@@ -5,16 +5,24 @@ import type { GenerateSuggestedQuestionsRequest, ChatMessage } from '@/lib/types
 
 const logger = pino();
 
+<<<<<<< HEAD
 const MODEL_NAME = "gemini-1.5-flash";
+=======
+const MODEL_NAME = "gemini-1.5-flash"; // Reverted to known valid model
+>>>>>>> 64a827b9f867e23e5563b1f13d65920ff791ff11
 const API_KEY = process.env.GEMINI_API_KEY || "";
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
 const generationConfig = {
+<<<<<<< HEAD
   temperature: 0.9,
+=======
+  temperature: 0.9, // Adjusted for high creativity within valid range
+>>>>>>> 64a827b9f867e23e5563b1f13d65920ff791ff11
   topK: 1,
-  topP: 0.80,
+  topP: 0.80, // User's requested topP
   maxOutputTokens: 2048,
 };
 
@@ -131,6 +139,7 @@ export async function POST(req: NextRequest) {
     try {
       const cleanedText = responseText.replace(/^```json\s*|```\s*$/g, '').trim();
       questions = JSON.parse(cleanedText);
+<<<<<<< HEAD
       if (!Array.isArray(questions) || questions.length !== expectedQuestionCount || !questions.every(q => typeof q === 'string')) {
         logger.error({ parsedQuestions: questions, expectedCount: expectedQuestionCount, type }, `LLM response for ${type} suggested questions was not a valid array of ${expectedQuestionCount} strings.`);
         throw new Error(`Invalid format for ${type} suggested questions from LLM.`);
@@ -138,12 +147,39 @@ export async function POST(req: NextRequest) {
     } catch (parseError) {
       logger.error({ parseError, responseText, type }, `Failed to parse LLM response for ${type} suggested questions into JSON array.`);
       questions = fallbackQuestions; // Use type-specific fallback
+=======
+      if (!Array.isArray(questions) || questions.length !== 4 || !questions.every(q => typeof q === 'string')) { // Check for 4 questions
+        logger.error({ parsedQuestions: questions }, "LLM response for suggested questions was not a valid array of 4 strings.");
+        throw new Error("Invalid format for suggested questions from LLM.");
+      }
+    } catch (parseError) {
+      logger.error({ parseError, responseText }, "Failed to parse LLM response for suggested questions into JSON array.");
+      // Fallback if parsing fails or format is incorrect - 4 questions
+      questions = [
+        "What’s the best moisturizer for dry skin?",
+        "Can you recommend a sulfate-free shampoo?",
+        "Show me vegan lipsticks under $20.",
+        "Are there any products for sensitive skin?"
+      ];
+>>>>>>> 64a827b9f867e23e5563b1f13d65920ff791ff11
     }
     
     return NextResponse.json({ questions });
 
   } catch (error) {
+<<<<<<< HEAD
     logger.error({ err: error, type }, `Error generating ${type} suggested questions from LLM`);
     return NextResponse.json({ questions: fallbackQuestions, error: `Failed to generate ${type} questions dynamically, serving fallback.` }, { status: 500 });
+=======
+    logger.error({ err: error }, 'Error generating suggested questions from LLM');
+    // Fallback to a static list in case of any error - 4 questions
+    const fallbackQuestions = [
+        "What are some popular eyeshadow palettes?",
+        "Any tips for beginners on skincare routines?",
+        "Find me a good gift for my mom.",
+        "What products help with frizzy hair?"
+    ];
+    return NextResponse.json({ questions: fallbackQuestions, error: "Failed to generate questions dynamically, serving fallback." }, { status: 500 });
+>>>>>>> 64a827b9f867e23e5563b1f13d65920ff791ff11
   }
 }
