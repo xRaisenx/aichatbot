@@ -1,6 +1,7 @@
 __mocks__
 ~
 /node_modules
+/.idx
 /.mcp-dev-server
 /.clinerules
 /.next

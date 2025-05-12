@@ -104,12 +104,48 @@ export async function POST(request: Request) {
 
       if (vectorIndex && searchKeywordsString.trim() !== '') {
         logger.info({ searchKeywordsString, requested_product_count: llmResult.requested_product_count }, 'Performing vector query with keywords.');
-        const topK = llmResult.requested_product_count || 1; // Respect requested_product_count
-        const productQueryResults = await vectorIndex.query({
-          data: searchKeywordsString,
-          topK: topK,
-          includeMetadata: true,
-        }) as QueryResult<ProductVectorMetadata>[];
+
+        let productQueryResults: QueryResult<ProductVectorMetadata>[] = [];
+
+        if (llmResult.is_combo_set_query && Array.isArray(llmResult.product_types) && llmResult.product_types.length > 0) {
+          // Handle set/combo queries by searching for individual product types
+          logger.info({ product_types: llmResult.product_types }, 'Handling combo/set query by searching for individual product types.');
+          const resultsPromises = llmResult.product_types.map(type =>
+            vectorIndex!.query({
+              data: type, // Search for each product type
+              topK: Math.ceil((llmResult.requested_product_count || 3) / llmResult.product_types.length), // Distribute requested count among types
+              includeMetadata: true,
+            }) as Promise<QueryResult<ProductVectorMetadata>[]>
+          );
+          const resultsArrays = await Promise.all(resultsPromises);
+          productQueryResults = resultsArrays.flat(); // Combine results from all searches
+
+          // Remove duplicates based on product ID
+          const productIds = new Set<string>();
+          productQueryResults = productQueryResults.filter(match => {
+              if (match.metadata?.id && !productIds.has(match.metadata.id)) {
+                  productIds.add(match.metadata.id);
+                  return true;
+              }
+              return false;
+          });
+
+
+           if (llmResult.requested_product_count && productQueryResults.length > llmResult.requested_product_count) {
+              productQueryResults = productQueryResults.slice(0, llmResult.requested_product_count); // Trim to requested count
+           }
+
+
+        } else {
+          // Handle regular product queries
+          const topK = llmResult.requested_product_count || 1; // Respect requested_product_count
+           productQueryResults = await vectorIndex.query({
+            data: searchKeywordsString,
+            topK: topK,
+            includeMetadata: true,
+          }) as QueryResult<ProductVectorMetadata>[];
+        }
+
 
         let filteredResults = productQueryResults.filter(match => match.metadata);
 
@@ -136,11 +172,19 @@ export async function POST(request: Request) {
           finalProductCards = filteredResults.map(match => {
             const p = match.metadata!;
             const priceNumber = Number(p.price);
-            const reasonForMatch = 'Relevant product based on your query.';
+             // Use a more informative description for complementary products in a set/combo
+             const reasonForMatch = llmResult.is_combo_set_query && p.productType ? `Part of a "${llmResult.ai_understanding}" set - ${p.productType}.` : 'Relevant product based on your query.';
+
             let finalDescription = reasonForMatch;
-            if (finalDescription.length > MAX_DESCRIPTION_LENGTH) {
-              finalDescription = finalDescription.substring(0, MAX_DESCRIPTION_LENGTH) + '...';
-            }
+            if (p.textForBM25 && !llmResult.is_combo_set_query) { // Include product description for non-combo queries
+                 finalDescription = p.textForBM25.substring(0, MAX_DESCRIPTION_LENGTH) + (p.textForBM25.length > MAX_DESCRIPTION_LENGTH ? '...' : '');
+             } else if (llmResult.is_combo_set_query && p.productType) {
+                // Keep the set/combo specific description
+             } else {
+                 finalDescription = 'Relevant product based on your query.'; // Fallback description
+             }
+
+
             return {
               title: p.title,
               description: finalDescription,
@@ -161,6 +205,7 @@ export async function POST(request: Request) {
     } else {
       logger.info({ is_product_query: llmResult.is_product_query, is_fictional: llmResult.is_fictional_product_query, is_clarification_needed: llmResult.is_clarification_needed }, 'Skipping product search for non-product, fictional, or clarification query.');
     }
+
 
     fullChatHistory.push({ role: 'assistant', content: enhancedAdvice });
 

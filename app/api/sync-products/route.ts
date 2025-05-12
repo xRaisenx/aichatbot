@@ -1,61 +1,50 @@
-import { AdminFetchResult, fetchAdminShopifyProducts } from '@lib/shopify-admin'; // Removed AdminShopifyProductNode
+import { AdminFetchResult, fetchAdminShopifyProducts } from '@lib/shopify-admin';
 import { Index as VectorIndex } from '@upstash/vector';
 import { NextResponse } from 'next/server';
-// generateEmbeddings is no longer needed for sparse-only
-// import { generateEmbeddings } from '../../../lib/gemini'; 
 
 type VectorMetadata = {
-  textForBM25: string; // Text for BM25 sparse indexing - making this non-optional as it's key for sparse
+  textForBM25: string;
   title: string;
   handle: string;
   vendor: string;
   productType: string;
   tags: string[];
-  price: string;
+  price: number; // Store as number (representing cents)
   imageUrl: string;
   productUrl: string;
   variantId: string;
 };
 
-// Updated for sparse-only: 'data' field for BM25 text, 'vector' field removed.
 type SparseVectorRecord = {
   id: string;
-  data: string; // For BM25 text
+  data: string;
   metadata: VectorMetadata;
 };
 
-// Initialize Upstash vector client
-// Explicitly type the index with the metadata structure
 const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_TOKEN
   ? new VectorIndex<VectorMetadata>({
-      url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''), 
-      token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''), 
+      url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+      token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
     })
   : null;
 
-// Constants
-const BATCH_SIZE_VECTOR = 25; 
+const BATCH_SIZE_VECTOR = 25;
 const MAX_RETRIES = 3;
 
-// Helper functions for duplicate checking
 function areObjectsEqual(obj1: Record<string, unknown>, obj2: Record<string, unknown>): boolean {
   if (obj1 === null && obj2 === null) return true;
   if (obj1 === null || obj2 === null) return false;
-  // Ensure consistent key order for comparison, especially for metadata.textForBM25
   const sortedObj1 = JSON.stringify(Object.keys(obj1).sort().reduce((acc, key) => { acc[key] = obj1[key]; return acc; }, {} as Record<string, unknown>));
   const sortedObj2 = JSON.stringify(Object.keys(obj2).sort().reduce((acc, key) => { acc[key] = obj2[key]; return acc; }, {} as Record<string, unknown>));
   return sortedObj1 === sortedObj2;
 }
 
-// areVectorsEqual is no longer needed for sparse-only
-
-const BASE_RETRY_DELAY = 1000; // 1 second
+const BASE_RETRY_DELAY = 1000;
 const SECRET = process.env.CRON_SECRET;
 
-// Retry with exponential backoff for sparse vectors
 async function upsertWithRetry(
-  currentIndex: VectorIndex<VectorMetadata>, 
-  batch: SparseVectorRecord[], // Use SparseVectorRecord
+  currentIndex: VectorIndex<VectorMetadata>,
+  batch: SparseVectorRecord[],
   retryCount: number = 0
 ): Promise<void> {
   if (batch.length === 0) {
@@ -63,17 +52,16 @@ async function upsertWithRetry(
     return;
   }
 
-  let itemsToUpsert: SparseVectorRecord[] = [...batch]; 
+  let itemsToUpsert: SparseVectorRecord[] = [...batch];
   let skippedCount = 0;
 
   try {
     const idsToFetch = batch.map(item => item.id);
-    // Fetch existing records (only metadata needed for sparse duplicate check)
     const existingRecordsNullable = await currentIndex.fetch(idsToFetch, { includeMetadata: true });
 
     const existingRecordsMap = new Map<string, { metadata?: VectorMetadata }>();
     existingRecordsNullable.forEach((record, index) => {
-      if (record && record.metadata) { 
+      if (record && record.metadata) {
         existingRecordsMap.set(idsToFetch[index], { metadata: record.metadata });
       }
     });
@@ -82,20 +70,19 @@ async function upsertWithRetry(
     for (const newItem of batch) {
       const existingItemData = existingRecordsMap.get(newItem.id);
       if (existingItemData && existingItemData.metadata) {
-        // Compare metadata, which now includes textForBM25 (via newItem.data being mapped to metadata.textForBM25)
         const metadataMatches = areObjectsEqual(newItem.metadata, existingItemData.metadata);
 
         if (metadataMatches) {
             skippedCount++;
-            continue; 
+            continue;
         } else {
-            trulyNewOrChangedItems.push(newItem); 
+            trulyNewOrChangedItems.push(newItem);
         }
       } else {
         trulyNewOrChangedItems.push(newItem);
       }
     }
-    itemsToUpsert = trulyNewOrChangedItems; 
+    itemsToUpsert = trulyNewOrChangedItems;
 
     if (skippedCount > 0) {
       console.log(`Skipped ${skippedCount} identical items (based on metadata) from the batch of ${batch.length}.`);
@@ -110,11 +97,9 @@ async function upsertWithRetry(
   }
 
   try {
-    // Upsert sparse vectors: Upstash SDK expects { id: string, data: string, metadata: object }
     await currentIndex.upsert(itemsToUpsert);
     console.log(`Successfully upserted batch of ${itemsToUpsert.length} sparse records`);
   } catch (err) {
-    // Removed the specific check for 'This index requires sparse vectors' as we are now intentionally sending sparse.
     if (err instanceof Error && err.message.includes('Exceeded daily write limit')) {
       if (retryCount >= MAX_RETRIES) {
         console.error(`Max retries (${MAX_RETRIES}) reached for batch of ${itemsToUpsert.length}. Skipping.`);
@@ -133,10 +118,10 @@ async function upsertWithRetry(
           smallerBatches.push(itemsToUpsert.slice(i, i + newBatchSize));
         }
         for (const smallerBatch of smallerBatches) {
-          await upsertWithRetry(currentIndex, smallerBatch, retryCount + 1); 
+          await upsertWithRetry(currentIndex, smallerBatch, retryCount + 1);
         }
       } else {
-        await upsertWithRetry(currentIndex, itemsToUpsert, retryCount + 1); 
+        await upsertWithRetry(currentIndex, itemsToUpsert, retryCount + 1);
       }
     } else {
       console.error('Unexpected error during sparse upsert:', err);
@@ -145,7 +130,6 @@ async function upsertWithRetry(
   }
 }
 
-// Add a function to fetch MXN to USD exchange rate
 async function fetchExchangeRate(from: string, to: string): Promise<number> {
   try {
     const res = await fetch(`https://api.exchangerate.host/convert?from=${from}&to=${to}`);
@@ -173,12 +157,11 @@ export async function GET(request: Request) {
   let fetched = 0;
   let processed = 0;
   let errors = 0;
-  const vectorUpsertBatch: SparseVectorRecord[] = []; // Use SparseVectorRecord
+  const vectorUpsertBatch: SparseVectorRecord[] = [];
 
   let exchangeRate = 1;
   let storeCurrency = 'USD';
   try {
-    // Fetch the first page to get the currency code
     const firstResult: AdminFetchResult = await fetchAdminShopifyProducts(null);
     if (firstResult.products.length > 0) {
       storeCurrency = firstResult.products[0].priceRange.minVariantPrice.currencyCode || 'USD';
@@ -200,33 +183,30 @@ export async function GET(request: Request) {
       for (const product of products) {
         try {
           const productType = product.productType ? product.productType.split('>').pop()?.trim() : '';
-          const tags = product.tags ? product.tags.map(tag => tag.trim()).join(', ') : '';
-          const textForBM25 = `${product.title} ${product.descriptionHtml || ''} ${tags} ${product.vendor || ''} ${productType || ''}`.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const tags = product.tags ? product.tags.map(tag => tag.trim()) : []; // Keep tags as an array
+          const textForBM25 = `${product.title} ${product.descriptionHtml || ''} ${tags.join(' ') || ''} ${product.vendor || ''} ${productType || ''}`.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); // Join tags for textForBM25
 
-          const originalPrice = parseFloat(product.priceRange.minVariantPrice.amount);
-          const priceUSD = storeCurrency === 'USD' ? originalPrice : (originalPrice * exchangeRate).toFixed(2);
+          // Treat price from Shopify API as an integer representing cents (or smallest unit)
+          const priceFromShopify = parseInt(product.priceRange.minVariantPrice.amount, 10);
 
-          // Format priceUSD to always have two decimal places
-          // Shopify prices are usually in full currency units, not cents, via Admin API unless specified.
-          // If they were in cents, division by 100 would be needed here.
-          // Assuming priceUSD is already in the correct main currency unit (e.g., 25.99 not 2599 for $25.99)
-          const formattedPriceUSD: string = Number(priceUSD).toFixed(2);
+          // Apply exchange rate if necessary, keeping it as cents
+          const priceToStore: number = storeCurrency === 'USD' ? priceFromShopify : Math.round(priceFromShopify * exchangeRate);
 
-          // Prepare sparse vector data
+
           const sparseVectorData: SparseVectorRecord = {
             id: product.id,
-            data: textForBM25, // This is the text content for BM25
+            data: textForBM25,
             metadata: {
-              textForBM25: textForBM25, // Store it in metadata as well for potential duplicate checks or other uses
+              textForBM25: textForBM25,
               title: product.title,
               handle: product.handle,
               vendor: product.vendor || '',
               productType: productType || '',
-              tags: product.tags ? product.tags.map(tag => tag.trim()) : [],
-              price: formattedPriceUSD, // Store as USD with two decimals
+              tags: tags, // Store tags as an array
+              price: priceToStore, // Store the price in cents
               imageUrl: product.images?.edges[0]?.node.url || '',
-              productUrl: product.onlineStoreUrl || `/products/${product.handle}`, // Prefer onlineStoreUrl if available
-              variantId: product.variants?.edges[0]?.node.id || product.id, // Fallback to product.id if no variant
+              productUrl: product.onlineStoreUrl || `/products/${product.handle}`,
+              variantId: product.variants?.edges[0]?.node.id || product.id,
             },
           };
 
@@ -235,11 +215,11 @@ export async function GET(request: Request) {
           if (vectorUpsertBatch.length >= BATCH_SIZE_VECTOR) {
             if (vectorIndex) {
               await upsertWithRetry(vectorIndex, vectorUpsertBatch);
-              vectorUpsertBatch.length = 0; 
-              await new Promise(resolve => setTimeout(resolve, 500)); 
+              vectorUpsertBatch.length = 0;
+              await new Promise(resolve => setTimeout(resolve, 500));
             } else {
               console.warn('Vector client not initialized. Skipping upsert batch.');
-              errors += vectorUpsertBatch.length; // Count as errors if not upserted
+              errors += vectorUpsertBatch.length;
             }
           }
           processed++;
@@ -249,8 +229,8 @@ export async function GET(request: Request) {
         }
       }
       fetched += products.length;
-      console.log(`Fetched ${fetched} products so far...`); 
-    } while (cursor); 
+      console.log(`Fetched ${fetched} products so far...`);
+    } while (cursor);
 
     if (vectorUpsertBatch.length > 0 && vectorIndex) {
       await upsertWithRetry(vectorIndex, vectorUpsertBatch);
@@ -263,20 +243,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Sync failed', details: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 });
   }
 }
-
-// generateVector function is no longer needed for sparse-only
-// async function generateVector(product: AdminShopifyProductNode, textForEmbedding: string): Promise<number[]> {
-//   try {
-//     const embeddings = await generateEmbeddings(textForEmbedding);
-//     if (embeddings && embeddings.length === 768) {
-//       console.log(`Successfully generated real 768-dimension vector for product: ${product.id}`);
-//       return embeddings;
-//     } else {
-//       console.warn(`Failed to generate real embeddings for product ${product.id}. Falling back to dummy vector.`);
-//       return Array(768).fill(0).map(() => Math.random());
-//     }
-//   } catch (error) {
-//     console.error(`Error in generateVector for product ${product.id}:`, error);
-//     return Array(768).fill(0).map(() => Math.random());
-//   }
-// }
