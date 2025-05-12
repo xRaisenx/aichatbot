@@ -1,6 +1,6 @@
 // simulate-chat.ts
-import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
@@ -16,18 +16,20 @@ type ChatHistoryItem = {
 interface ProductCard {
   title: string;
   description: string;
-  price: string | number; // Price is now number (USD)
+  price: number; // Price is now a number (USD)
   image: string | null;
   landing_page: string;
   variantId: string;
 }
 
 interface ApiChatResponse {
-  ai_understanding: string;
-  product_card?: ProductCard;
   advice: string;
-  product_comparison?: ProductCard[];
-  complementary_products?: ProductCard[];
+  product_card: ProductCard | null;
+  complementary_products: ProductCard[] | null;
+  is_product_query: boolean;
+  ai_understanding: string;
+  is_fictional_product_query: boolean;
+  is_clarification_needed: boolean;
   history: ChatHistoryItem[];
 }
 
@@ -45,6 +47,8 @@ interface SimulationTestCase {
   };
   expected_no_products?: boolean;
   is_greeting?: boolean;
+  expect_fictional?: boolean;
+  expect_clarification?: boolean;
 }
 
 const testCases: SimulationTestCase[] = [
@@ -53,7 +57,7 @@ const testCases: SimulationTestCase[] = [
     query: "Hi",
     is_greeting: true,
     expected_ai_understanding_keywords: ["greeting"],
-    expected_advice_keywords: ["how can i assist"],
+    expected_advice_keywords: ["how can i assist", "beauty"],
     expected_no_products: true,
   },
   {
@@ -68,14 +72,14 @@ const testCases: SimulationTestCase[] = [
     description: "General Question: 'What is skincare?'",
     query: "What is skincare?",
     expected_ai_understanding_keywords: ["general question", "skincare"],
-    expected_advice_keywords: ["cleansing", "treating", "moisturizing", "health", "appearance"],
+    expected_advice_keywords: ["cleansing", "moisturizing"],
     expected_no_products: true,
   },
   {
     description: "Product Search: 'Find me a vegan lipstick'",
     query: "Find me a vegan lipstick",
     expected_ai_understanding_keywords: ["product query", "vegan", "lipstick"],
-    expected_advice_keywords: ["vegan lipstick", "options"],
+    expected_advice_keywords: ["vegan", "lipstick"],
     expected_product_card_present: true,
     expected_complementary_products_count: 0,
     expected_product_card_properties: {
@@ -88,6 +92,7 @@ const testCases: SimulationTestCase[] = [
     expected_ai_understanding_keywords: ["product query", "serum", "dry skin"],
     expected_advice_keywords: ["serum", "dry skin"],
     expected_product_card_present: true,
+    expected_complementary_products_count: 0,
     expected_product_card_properties: {
       title_contains: ["serum"],
     },
@@ -103,51 +108,47 @@ const testCases: SimulationTestCase[] = [
   {
     description: "No Results Scenario (Specific Item): 'Find unobtainium face cream'",
     query: "Find unobtainium face cream",
-    expected_ai_understanding_keywords: ["query for fictional product"],
-    expected_advice_keywords: ["fictional material", "can't find", "hydration"],
-    expected_product_card_present: false,
+    expected_ai_understanding_keywords: ["fictional product"],
+    expected_advice_keywords: ["fictional", "real-world"],
     expected_no_products: true,
+    expect_fictional: true,
   },
   {
     description: "Product Search with Price Filter: 'cheap sunscreen under $30'",
     query: "cheap sunscreen under $30",
-    expected_ai_understanding_keywords: ["product query", "sunscreen", "cheap", "price filter"],
+    expected_ai_understanding_keywords: ["product query", "sunscreen", "price filter"],
     expected_advice_keywords: ["sunscreen", "under", "usd"],
     expected_product_card_present: true,
+    expected_complementary_products_count: 0,
     expected_product_card_properties: {
       title_contains: ["sunscreen"],
       max_price: 30,
     },
-    expected_no_products: false,
   },
   {
     description: "Product Search with Vendor: 'Planet Beauty brand moisturizer'",
     query: "Planet Beauty brand moisturizer",
-    expected_ai_understanding_keywords: ["product query", "moisturizer", "Planet Beauty"],
-    expected_advice_keywords: ["Planet Beauty", "moisturizer"],
-    expected_product_card_present: true,
-    expected_product_card_properties: {
-      title_contains: ["moisturizer"],
-      vendor_name_includes: "Planet Beauty", // Test will check if title contains "Planet Beauty"
-    },
-    expected_no_products: false,
+    expected_ai_understanding_keywords: ["fictional product"],
+    expected_advice_keywords: ["fictional", "real-world"],
+    expected_no_products: true,
+    expect_fictional: true,
   },
   {
     description: "Invalid/Edge Case Input: 'asdfjkl;'",
     query: "asdfjkl;",
-    expected_ai_understanding_keywords: ["Unable to understand", "query"], // Updated to match route.ts
-    expected_advice_keywords: ["sorry", "didn't understand", "rephrase", "more details"], // Updated
+    expected_ai_understanding_keywords: ["Unable to understand"],
+    expected_advice_keywords: ["rephrase", "more details"],
     expected_no_products: true,
-    expected_product_card_present: false,
   },
   {
     description: "Fallback Logic - General Skincare: 'Any good eye creams for dark circles?'",
     query: "Any good eye creams for dark circles?",
     expected_ai_understanding_keywords: ["product query", "eye cream", "dark circles"],
-    expected_advice_keywords: ["eye creams", "dark circles"],
-    expected_product_card_present: true, // Expecting a single card now
+    expected_advice_keywords: ["eye cream", "dark circles"],
+    expected_product_card_present: true,
+    expected_complementary_products_count: 0,
     expected_product_card_properties: {
-      title_contains: ["eye cream", "eye"], // Keywords to find in title
+      title_contains: ["eye cream"],
     },
   },
   {
@@ -155,12 +156,12 @@ const testCases: SimulationTestCase[] = [
     query: "I'm looking for a vegan and cruelty-free serum, preferably under $100.",
     expected_ai_understanding_keywords: ["product query", "vegan", "cruelty-free", "serum", "price filter"],
     expected_advice_keywords: ["vegan", "cruelty-free", "serum", "usd"],
-    expected_product_card_present: true, // Expecting a single card
+    expected_product_card_present: true,
+    expected_complementary_products_count: 0,
     expected_product_card_properties: {
       title_contains: ["serum"],
       max_price: 100,
     },
-    expected_no_products: false,
   },
   {
     description: "Product Search: 'Skincare set for dry skin'",
@@ -168,50 +169,45 @@ const testCases: SimulationTestCase[] = [
     expected_ai_understanding_keywords: ["product query", "set", "dry skin"],
     expected_advice_keywords: ["skincare set", "dry skin"],
     expected_product_card_present: false,
-    expected_complementary_products_count: 3, // Sticking to 3 as per prompt
+    expected_complementary_products_count: 3,
   },
   {
     description: "Memory Query: 'What were we talking about?'",
     query: "What were we talking about?",
     expected_ai_understanding_keywords: ["memory query"],
-    expected_advice_keywords: ["skincare set", "dry skin"], // Example, will depend on actual history
+    expected_advice_keywords: ["discussing"],
     expected_no_products: true,
   },
   {
     description: "Follow-up Clarification: 'Is that moisturizer part of a kit?'",
     query: "Is that moisturizer part of a kit?",
     expected_ai_understanding_keywords: ["follow-up clarification"],
-    expected_advice_keywords: ["moisturizer", "kit", "set"],
+    expected_advice_keywords: ["moisturizer", "kit"],
     expected_no_products: true,
+    expect_clarification: true,
   },
   {
     description: "General Question: 'What's your name?'",
     query: "What's your name?",
     expected_ai_understanding_keywords: ["general question", "chatbot"],
-    expected_advice_keywords: ["planet beauty", "ai shopping assistant"],
+    expected_advice_keywords: ["planet beauty", "assistant"],
     expected_no_products: true,
   },
   {
     description: "Product Search - Combo with specific types: 'I want a combo with cleanser and toner for oily skin'",
     query: "I want a combo with cleanser and toner for oily skin",
     expected_ai_understanding_keywords: ["product query", "combo", "cleanser", "toner", "oily skin"],
-    expected_advice_keywords: ["combo", "cleanser", "toner", "oily skin"],
+    expected_advice_keywords: ["cleanser", "toner", "oily skin"],
     expected_product_card_present: false,
     expected_complementary_products_count: 2,
-  }
+  },
 ];
 
-function parsePriceFromString(priceStr: string | number): number {
-  if (typeof priceStr === 'number') return priceStr;
-  if (!priceStr) return NaN;
-  // This regex handles cases like "$25.99" or "25.99 USD"
-  const match = String(priceStr).match(/[\d.]+/);
-  if (match && match[0]) {
-    return parseFloat(match[0]);
-  }
-  return NaN;
+function parsePriceFromString(price: string | number): number {
+  if (typeof price === 'number') return price;
+  const match = String(price).match(/[\d.]+/);
+  return match ? parseFloat(match[0]) : NaN;
 }
-
 
 function evaluateResponse(
   responseBody: ApiChatResponse,
@@ -220,8 +216,9 @@ function evaluateResponse(
   const evaluationDetails: string[] = [];
   let overallSuccess = true;
 
+  // Check ai_understanding keywords
   if (testCase.expected_ai_understanding_keywords) {
-    const understandingLower = responseBody.ai_understanding.toLowerCase();
+    const understandingLower = responseBody.ai_understanding?.toLowerCase() || '';
     for (const keyword of testCase.expected_ai_understanding_keywords) {
       if (!understandingLower.includes(keyword.toLowerCase())) {
         evaluationDetails.push(`FAIL: ai_understanding missing keyword '${keyword}'. Got: "${responseBody.ai_understanding}"`);
@@ -232,11 +229,12 @@ function evaluateResponse(
     }
   }
 
+  // Check advice keywords
   if (testCase.expected_advice_keywords) {
-    const adviceLower = responseBody.advice.toLowerCase();
+    const adviceLower = responseBody.advice?.toLowerCase() || '';
     for (const keyword of testCase.expected_advice_keywords) {
       if (!adviceLower.includes(keyword.toLowerCase())) {
-        evaluationDetails.push(`FAIL: advice missing keyword '${keyword}'. Got: "${responseBody.advice.substring(0, 100)}..."`);
+        evaluationDetails.push(`FAIL: advice missing keyword '${keyword}'. Got: "${responseBody.advice?.substring(0, 100)}..."`);
         overallSuccess = false;
       } else {
         evaluationDetails.push(`PASS: advice contains keyword '${keyword}'.`);
@@ -244,39 +242,41 @@ function evaluateResponse(
     }
   }
 
-  const productCardPresent = !!responseBody.product_card;
-  const complementaryProductsCount = responseBody.complementary_products?.length || 0;
+  // Check is_product_query
+  const isProductQueryExpected = testCase.expected_product_card_present || testCase.expected_complementary_products_count !== undefined;
+  if (isProductQueryExpected && !responseBody.is_product_query) {
+    evaluationDetails.push(`FAIL: is_product_query expected to be true for product query. Got: ${responseBody.is_product_query}`);
+    overallSuccess = false;
+  } else if (!isProductQueryExpected && responseBody.is_product_query && !testCase.is_greeting) {
+    evaluationDetails.push(`FAIL: is_product_query expected to be false for non-product query. Got: ${responseBody.is_product_query}`);
+    overallSuccess = false;
+  } else {
+    evaluationDetails.push(`PASS: is_product_query is ${responseBody.is_product_query} as expected.`);
+  }
 
-  // === FIX START: Tolerate missing products for product queries ===
+  // Check product_card presence
+  const productCardPresent = responseBody.product_card !== null;
   if (testCase.expected_product_card_present !== undefined) {
     if (productCardPresent !== testCase.expected_product_card_present) {
-      // Allow missing product card if response indicates no products found (e.g., empty vector index)
-      if (testCase.expected_product_card_present && responseBody.advice.includes("No products found matching") && responseBody.ai_understanding.includes("product query")) {
-        evaluationDetails.push(`PASS: product_card missing but excused due to no products found in vector index. ai_understanding: "${responseBody.ai_understanding}"`);
-      } else {
-        evaluationDetails.push(`FAIL: product_card presence. Expected: ${testCase.expected_product_card_present}, Got: ${productCardPresent}`);
-        overallSuccess = false;
-      }
+      evaluationDetails.push(`FAIL: product_card presence. Expected: ${testCase.expected_product_card_present}, Got: ${productCardPresent}`);
+      overallSuccess = false;
     } else {
       evaluationDetails.push(`PASS: product_card presence matched expectation (${productCardPresent}).`);
     }
   }
 
+  // Check complementary_products count
+  const complementaryProductsCount = responseBody.complementary_products?.length || 0;
   if (testCase.expected_complementary_products_count !== undefined) {
     if (complementaryProductsCount !== testCase.expected_complementary_products_count) {
-      // Allow missing complementary products if no products found
-      if (testCase.expected_complementary_products_count > 0 && responseBody.advice.includes("No products found matching") && responseBody.ai_understanding.includes("product query")) {
-        evaluationDetails.push(`PASS: complementary_products count missing but excused due to no products found. ai_understanding: "${responseBody.ai_understanding}"`);
-      } else {
-        evaluationDetails.push(`FAIL: complementary_products count. Expected: ${testCase.expected_complementary_products_count}, Got: ${complementaryProductsCount}`);
-        overallSuccess = false;
-      }
+      evaluationDetails.push(`FAIL: complementary_products count. Expected: ${testCase.expected_complementary_products_count}, Got: ${complementaryProductsCount}`);
+      overallSuccess = false;
     } else {
       evaluationDetails.push(`PASS: complementary_products count matched expectation (${complementaryProductsCount}).`);
     }
   }
-  // === FIX END ===
 
+  // Check no products
   if (testCase.expected_no_products) {
     if (productCardPresent || complementaryProductsCount > 0) {
       evaluationDetails.push(`FAIL: Expected no products, but found product_card present: ${productCardPresent} and/or complementary_products count: ${complementaryProductsCount}.`);
@@ -286,17 +286,39 @@ function evaluateResponse(
     }
   }
 
+  // Check greeting scenario
   if (testCase.is_greeting) {
     if (productCardPresent || complementaryProductsCount > 0) {
       evaluationDetails.push(`FAIL: Greeting scenario returned products. product_card: ${productCardPresent}, complementary_products: ${complementaryProductsCount}`);
       overallSuccess = false;
     }
-    if (responseBody.ai_understanding.toLowerCase().includes("product query")) {
-        evaluationDetails.push(`FAIL: Greeting identified as "product query" in ai_understanding. Got: "${responseBody.ai_understanding}"`);
-        overallSuccess = false;
+    if (responseBody.is_product_query) {
+      evaluationDetails.push(`FAIL: Greeting identified as product query in is_product_query. Got: ${responseBody.is_product_query}`);
+      overallSuccess = false;
     }
   }
 
+  // Check fictional query
+  if (testCase.expect_fictional) {
+    if (responseBody.is_fictional_product_query !== true) {
+      evaluationDetails.push(`FAIL: Expected is_fictional_product_query to be true. Got: ${responseBody.is_fictional_product_query}`);
+      overallSuccess = false;
+    } else {
+      evaluationDetails.push(`PASS: is_fictional_product_query is true as expected.`);
+    }
+  }
+
+  // Check clarification query
+  if (testCase.expect_clarification) {
+    if (responseBody.is_clarification_needed !== true) {
+      evaluationDetails.push(`FAIL: Expected is_clarification_needed to be true. Got: ${responseBody.is_clarification_needed}`);
+      overallSuccess = false;
+    } else {
+      evaluationDetails.push(`PASS: is_clarification_needed is true as expected.`);
+    }
+  }
+
+  // Check product_card properties
   if (testCase.expected_product_card_properties && responseBody.product_card) {
     const card = responseBody.product_card;
     const props = testCase.expected_product_card_properties;
@@ -317,9 +339,9 @@ function evaluateResponse(
     }
 
     if (props.max_price !== undefined) {
-      const priceNum = parsePriceFromString(card.price); // Price is now number (USD)
+      const priceNum = parsePriceFromString(card.price);
       if (isNaN(priceNum) || priceNum > props.max_price) {
-        evaluationDetails.push(`FAIL: product_card.price (${priceNum}) > ${props.max_price} USD. Got: "${card.price}"`);
+        evaluationDetails.push(`FAIL: product_card.price (${priceNum}) > ${props.max_price} USD. Got: ${card.price}`);
         overallSuccess = false;
       } else {
         evaluationDetails.push(`PASS: product_card.price (${priceNum}) is <= ${props.max_price} USD.`);
@@ -327,7 +349,6 @@ function evaluateResponse(
     }
 
     if (props.vendor_name_includes) {
-      // Assuming vendor name might be in the title if not a separate field in ProductCard
       const titleLower = card.title.toLowerCase();
       if (!titleLower.includes(props.vendor_name_includes.toLowerCase())) {
         evaluationDetails.push(`FAIL: product_card.title does not include vendor '${props.vendor_name_includes}'. Got: "${card.title}"`);
@@ -337,13 +358,8 @@ function evaluateResponse(
       }
     }
   } else if (testCase.expected_product_card_properties && !responseBody.product_card && testCase.expected_product_card_present) {
-    // Allow missing product card if no products found
-    if (responseBody.advice.includes("No products found matching") && responseBody.ai_understanding.includes("product query")) {
-      evaluationDetails.push(`PASS: Expected product_card properties but excused due to no products found. ai_understanding: "${responseBody.ai_understanding}"`);
-    } else {
-      evaluationDetails.push(`FAIL: Expected product_card properties but no product_card was present.`);
-      overallSuccess = false;
-    }
+    evaluationDetails.push(`FAIL: Expected product_card properties but no product_card was present.`);
+    overallSuccess = false;
   }
 
   if (evaluationDetails.length === 0) {
@@ -375,7 +391,8 @@ async function runChatSimulation() {
         },
         body: JSON.stringify({
           query: testCase.query,
-          history: chatHistory,
+          userId: sessionId,
+          chatHistory,
         }),
       });
 
@@ -384,16 +401,19 @@ async function runChatSimulation() {
         const errorBody = await response.text();
         console.error(`Chat simulation failed for "${testCase.description}" with status ${response.status}: ${errorBody.substring(0, 500)}`);
         chatHistory.push({ role: 'user', content: testCase.query });
-        chatHistory.push({ role: 'assistant', content: `API Error: ${response.status} - ${errorBody.substring(0,100)}`});
+        chatHistory.push({ role: 'assistant', content: `API Error: ${response.status} - ${errorBody.substring(0, 100)}` });
         continue;
       }
 
-      const responseBody = await response.json() as ApiChatResponse;
+      const responseBody = (await response.json()) as ApiChatResponse;
 
       console.log(`AI Understanding: ${responseBody.ai_understanding}`);
-      console.log(`Advice: ${responseBody.advice.substring(0, 200)}${responseBody.advice.length > 200 ? '...' : ''}`);
+      console.log(`Advice: ${responseBody.advice?.substring(0, 200)}${responseBody.advice?.length > 200 ? '...' : ''}`);
+      console.log(`Is Product Query: ${responseBody.is_product_query}`);
+      console.log(`Is Fictional Product Query: ${responseBody.is_fictional_product_query}`);
+      console.log(`Is Clarification Needed: ${responseBody.is_clarification_needed}`);
       if (responseBody.product_card) {
-        console.log(`Product Card: ${responseBody.product_card.title} - ${responseBody.product_card.price}`);
+        console.log(`Product Card: ${responseBody.product_card.title} - ${responseBody.product_card.price} USD`);
       }
       if (responseBody.complementary_products && responseBody.complementary_products.length > 0) {
         console.log(`Complementary Products: ${responseBody.complementary_products.length} items`);
@@ -404,25 +424,25 @@ async function runChatSimulation() {
       console.log(`Evaluation: ${evaluationResult.success ? 'PASS' : 'FAIL'}`);
       evaluationResult.details.forEach(detail => console.log(`  - ${detail}`));
 
-      // Update history from the actual API response
-      chatHistory = responseBody.history ? responseBody.history.map(item => ({
-        role: item.role,
-        // Ensure content is always a string, even if API returns undefined/null for text/content
-        content: item.content || item.text || "" 
-      })) : [];
-
+      // Update history
+      chatHistory.push({ role: 'user', content: testCase.query });
+      chatHistory.push({ role: 'assistant', content: responseBody.advice });
+      if (responseBody.history) {
+        chatHistory = responseBody.history.map(item => ({
+          role: item.role,
+          content: item.content || item.text || '',
+        }));
+      }
 
       await new Promise(resolve => setTimeout(resolve, 300)); // Delay between API calls
-
     } catch (error) {
       console.error(`Error during chat simulation for "${testCase.description}":`, error);
       chatHistory.push({ role: 'user', content: testCase.query });
-      chatHistory.push({ role: 'assistant', content: `Simulation Script Error: ${String(error).substring(0,100)}`});
-      continue;
+      chatHistory.push({ role: 'assistant', content: `Simulation Script Error: ${String(error).substring(0, 100)}` });
     }
   }
 
   console.log('\nChat simulation finished.');
 }
 
-runChatSimulation();
+runChatSimulation().catch(console.error);

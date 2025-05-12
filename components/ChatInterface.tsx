@@ -256,7 +256,7 @@ export function ChatInterface() {
       inputRef.current?.focus();
       updateButtons();
     }
-  }, [isLoading, messages, updateButtons]); // Removed setContextualSuggestions from dependency array as it's a setter
+  }, [isLoading, messages, updateButtons, userId]); // Removed setContextualSuggestions from dependency array as it's a setter
 
   const handleSendClick = () => {
     sendMessage(input);

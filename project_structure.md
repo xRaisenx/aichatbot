@@ -34,7 +34,7 @@ The core of the Next.js 13+ application, leveraging the App Router. It includes 
     *   `(Other admin-specific pages)`: e.g., `/admin/users/page.tsx`, `/admin/products/page.tsx`.
 *   `/api`: Houses all backend API route handlers.
     *   `/chat`
-        *   `route.ts`: Core endpoint handling chat messages. Integrates Gemini AI (via `lib/llm.ts`), Upstash Vector (for product search), and Upstash Redis (for API response caching, session history, and knowledge base updates).
+        *   `route.ts`: Core endpoint handling chat messages. Integrates Gemini AI (via `lib/llm.ts`), Upstash Vector (for product search), and Upstash Redis (for API response caching, session history, and knowledge base updates). Implements logic for prioritizing product cards and skipping vector search for fictional or clarification queries. Also includes fixes for `is_product_query` misclassification and `userId` handling.
         *   `generate-suggested-questions/route.ts`: API endpoint (POST) for generating AI-suggested questions. Handles requests for 4 general welcome questions (for initial chat load, `type: 'initial'`) and 3 contextually relevant suggested questions based on conversation history (`type: 'contextual'`).
     *   `/sync-products`
         *   `route.ts`: Endpoint for syncing Shopify products to Upstash Vector. Also triggers invalidation of relevant Redis caches. Potentially triggered manually or via cron.
@@ -68,7 +68,7 @@ Holds utility functions, helper modules, SDK initializations, and business logic
 
 **Files:**
 
-*   `gemini.ts` (or `llm.ts` as per current project): Interacts with the Google Gemini API. Checks Redis knowledge base (via `getKnowledgebaseEntry` from `redis.ts`) before making an API call. Handles JSON parsing and fallback logic.
+*   `gemini.ts` (or `lib/llm.ts` as per current project): Interacts with the Google Gemini API. Checks Redis knowledge base (via `getKnowledgebaseEntry` from `redis.ts`) before making an API call. Handles JSON parsing and fallback logic. Implements improved logging, enhanced fallback logic, query classification, structured response formatting, and ensures consistency with test expectations.
 *   `redis.ts`: Manages Upstash Redis connections and provides functions for API response caching, session history management, dynamic knowledge base (with keyword similarity search), cache invalidation, and storing/retrieving the base system prompt. Exports `redisClient` for direct use in other modules if needed.
 *   `vectorDb.ts` (or `upstashVector.ts`): Handles Upstash Vector operations for product embeddings and search (Note: `vectorIndex` is currently initialized directly in `app/api/chat/route.ts` and `lib/redis.ts`).
 *   `shopify.ts`: Interfaces with the Shopify Storefront API for product data and potential cart features.
@@ -130,7 +130,7 @@ Contains Prisma-related files for relational data management.
 *   `eslint.config.js`: Sets up ESLint for code linting.
 *   `.gitignore`: Specifies files for Git to ignore (e.g., node_modules, .env).
 *   `README.md`: Documents project overview and setup instructions.
-
+*   `scripts/populate-vector-index.ts`: Populates the Upstash Vector index with sample products for testing, ensuring product searches return expected results. This script uses @upstash/vector and pino for logging, and now includes a fix for the id type error and enhanced logging.
 
 This structure supports the Planet Beauty AI Chatbot's core features, AI integrations, and scalability, aligning with Next.js best practices and enabling future enhancements like deeper Shopify integration and admin tools.
 

@@ -5,12 +5,11 @@
  * Roles can be 'user', 'assistant' (for AI responses), 'system' (for system prompts),
  * or 'bot'/'model' for compatibility with older structures.
  */
-export type ChatMessage = {
+export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'bot' | 'model';
-  text?: string;    // Primarily used by older Redis history structure
+  text?: string; // Primarily used by older Redis history structure
   content?: string; // Primarily used by LLM APIs and newer history structure
-  // Potentially add other fields like 'name' if using OpenAI's function/tool calling roles
-};
+}
 
 /**
  * Represents an ordered sequence of chat messages.
@@ -22,18 +21,14 @@ export type ChatHistory = ChatMessage[];
  */
 export interface ProductVectorMetadata {
   id?: string;
-  handle: string;
   title: string;
-  price: string;
+  price: number;
   imageUrl: string | null;
   productUrl: string;
   variantId?: string;
-  vendor?: string | null;
-  productType?: string | null;
-  tags?: string[];
-  usageInstructions?: string;
-  textForBM25?: string; // For BM25/hybrid search
-  [key: string]: unknown; // Allows for additional arbitrary properties
+  tags: string[];
+  textForBM25: string;
+  [key: string]: unknown; // Added for Upstash Vector Dict compatibility
 }
 
 /**
@@ -45,54 +40,51 @@ export interface ProductCardResponse {
   price: number;
   image: string | null;
   landing_page: string;
-  matches?: string;
   variantId: string;
+  matches?: string;
   availableForSale?: boolean;
   quantityAvailable?: number;
 }
 
 /**
  * Defines the expected JSON structure from the LLM's understanding.
- * This should align with the fields defined in the STATIC_BASE_PROMPT_CONTENT.
+ * This aligns with the fields defined in the STATIC_BASE_PROMPT_CONTENT in redis.ts.
  */
-export type LLMStructuredResponse = {
-  ai_understanding: string;
-  search_keywords: string[]; // Ensure this is an array
-  advice: string;
-  requested_product_count: number;
-  product_types: string[];
-  usage_instructions?: string;
-  price_filter?: { // Updated structure
-    min_price?: number;
-    max_price?: number;
-    currency?: string;
-  } | null;
-  sort_by_price?: boolean;
-  vendor?: string | null; // Allow null
-  attributes?: string[];
+export interface LLMStructuredResponse {
   is_product_query: boolean;
-  is_combo_set_query?: boolean; // Added
-  is_fictional_product_query?: boolean; // Added
-  is_clarification_needed?: boolean; // Added
-  product_matches?: Array<{ variantId: string; reasoning: string }>; // New field for product-specific reasoning
-};
+  search_keywords: string[];
+  product_types: string[];
+  attributes: string[];
+  vendor: string | null;
+  price_filter: { max_price: number; currency: string } | null;
+  requested_product_count: number;
+  ai_understanding: string;
+  advice: string;
+  sort_by_price: boolean;
+  usage_instructions: string;
+  is_combo_set_query: boolean;
+  is_fictional_product_query: boolean;
+  is_clarification_needed: boolean;
+}
 
 /**
  * Overall structure of the JSON response sent by the /api/chat endpoint.
  */
 export interface ChatApiResponse {
-  ai_understanding: string;
-  product_card?: ProductCardResponse;
   advice: string;
-  product_comparison?: ProductCardResponse[];
-  complementary_products?: ProductCardResponse[];
-  history: ChatHistory; // Uses the unified ChatHistory type
+  product_card: ProductCardResponse | null;
+  complementary_products: ProductCardResponse[] | null;
+  is_product_query: boolean;
+  ai_understanding: string;
+  is_fictional_product_query: boolean;
+  is_clarification_needed: boolean;
+  history: ChatHistory;
 }
 
 /**
  * Defines the request body for the /api/chat/generate-suggested-questions endpoint.
  */
-export type GenerateSuggestedQuestionsRequest = {
+export interface GenerateSuggestedQuestionsRequest {
   type?: 'initial' | 'contextual'; // Defaults to 'initial' if not provided
   conversation_history?: ChatMessage[]; // Required if type is 'contextual'
-};
+}

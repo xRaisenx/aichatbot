@@ -1,6 +1,7 @@
 // app/api/chat/route.ts
 import { QueryResult, Index as VectorIndex } from '@upstash/vector';
 import { NextResponse } from 'next/server';
+import pino from 'pino';
 import { generateLLMResponse } from '../../../lib/llm';
 import {
   cacheResponse,
@@ -18,23 +19,20 @@ import {
   ProductVectorMetadata
 } from '../../../lib/types';
 
-// Removed unused redisClient variable
-
 const vectorIndex = new VectorIndex<ProductVectorMetadata>({
   url: process.env.UPSTASH_VECTOR_REST_URL || '',
   token: process.env.UPSTASH_VECTOR_TOKEN || '',
 });
 
-import pino from 'pino'; // Changed from require
-const logger = pino({ level: 'warn' });
+const logger = pino({ level: 'info' });
 
 const MAX_DESCRIPTION_LENGTH = 200;
 
 function extractNumericIdFromGid(gid: string | number | undefined): string {
-    if (typeof gid === 'number') return String(gid);
-    if (typeof gid !== 'string' || !gid) return ''; 
-    const parts = gid.split('/');
-    return parts.pop() || gid;
+  if (typeof gid === 'number') return String(gid);
+  if (typeof gid !== 'string' || !gid) return '';
+  const parts = gid.split('/');
+  return parts.pop() || gid;
 }
 
 export async function POST(request: Request) {
@@ -60,108 +58,77 @@ export async function POST(request: Request) {
     const cachedResponseData = await getCachedResponse(userId, trimmedQuery);
     if (cachedResponseData) {
       logger.info({ userId, query: trimmedQuery }, 'Returning cached response.');
-      let updatedHistoryForCache: ChatHistory = (await getSessionHistory(userId)) || [...clientChatHistory]; // Ensure it's a mutable copy if from client
+      const updatedHistoryForCache: ChatHistory = (await getSessionHistory(userId)) || [...clientChatHistory];
 
-      // Check if the last user message is the current query. If not, add it.
       const lastMessage = updatedHistoryForCache[updatedHistoryForCache.length - 1];
       if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== trimmedQuery) {
         updatedHistoryForCache.push({ role: 'user', content: trimmedQuery });
       }
-      // Add the assistant's cached response
-      const cachedApiResponse = cachedResponseData.response as ChatApiResponse; // Cast to ChatApiResponse
+      const cachedApiResponse = cachedResponseData.response as ChatApiResponse;
       updatedHistoryForCache.push({ role: 'assistant', content: cachedApiResponse.advice });
-      
+
       await cacheSessionHistory(userId, updatedHistoryForCache);
-      return NextResponse.json({...cachedApiResponse, history: updatedHistoryForCache}); // Use casted object
+      return NextResponse.json({ ...cachedApiResponse, history: updatedHistoryForCache });
     }
 
-    let fullChatHistory: ChatHistory = (await getSessionHistory(userId)) || [...clientChatHistory]; // Ensure mutable copy
-    // Add current user query to history if it's not already the last user message
+    const fullChatHistory: ChatHistory = (await getSessionHistory(userId)) || [...clientChatHistory];
     const lastHistoryMessage = fullChatHistory[fullChatHistory.length - 1];
     if (!lastHistoryMessage || lastHistoryMessage.role !== 'user' || lastHistoryMessage.content !== trimmedQuery) {
-        fullChatHistory.push({ role: 'user', content: trimmedQuery });
+      fullChatHistory.push({ role: 'user', content: trimmedQuery });
     }
 
     logger.info({ userId, query: trimmedQuery, chatHistoryLength: fullChatHistory.length }, 'Processing chat query.');
 
-    const historyForLLM = fullChatHistory.slice(-10); 
+    const historyForLLM = fullChatHistory.slice(-10);
 
     const llmResult: LLMStructuredResponse = await generateLLMResponse(STATIC_BASE_PROMPT_CONTENT, historyForLLM, trimmedQuery);
 
-    const adjustedLlmResult = { ...llmResult }; // Use const as it's not reassigned, only properties
-    const isFollowUpProductQuery = fullChatHistory.slice(-4).some(msg =>
-      msg.role === 'user' &&
-      msg.content?.toLowerCase().match(/\b(recommend|products?|find|show|best-selling|serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner)\b/)
-    );
-
-    if (!adjustedLlmResult.is_product_query && isFollowUpProductQuery && trimmedQuery.toLowerCase().match(/\b(retinol|hyaluronic acid|price|brand|contain|ingredients)\b/)) {
-      adjustedLlmResult.is_product_query = true;
-      adjustedLlmResult.ai_understanding = `follow-up product query for ${adjustedLlmResult.ai_understanding}`;
-      if (!adjustedLlmResult.search_keywords?.length) {
-        adjustedLlmResult.search_keywords = trimmedQuery.toLowerCase().split(/\s+/).filter(word =>
-          ['serum', 'eye cream', 'mascara', 'skincare', 'lipstick', 'sunscreen', 'moisturizer', 'cleanser', 'toner', 'vegan', 'cruelty-free', 'dark circles', 'dry skin', 'oily skin'].includes(word)
-        );
-        if (adjustedLlmResult.search_keywords.length === 0) {
-          adjustedLlmResult.search_keywords = adjustedLlmResult.product_types?.length ? adjustedLlmResult.product_types : ['product'];
-        }
-        logger.info({ adjustedSearchKeywords: adjustedLlmResult.search_keywords }, 'Restored search_keywords for follow-up product query.');
-      }
-    }
-
-    if (adjustedLlmResult.is_product_query && (!adjustedLlmResult.search_keywords || adjustedLlmResult.search_keywords.length === 0)) {
-      adjustedLlmResult.search_keywords = trimmedQuery.toLowerCase().split(/\s+/).filter(word =>
-        ['serum', 'eye cream', 'mascara', 'skincare', 'lipstick', 'sunscreen', 'moisturizer', 'cleanser', 'toner', 'vegan', 'cruelty-free', 'dark circles', 'dry skin', 'oily skin', 'cheap', 'cheapest'].includes(word)
-      );
-      if (adjustedLlmResult.search_keywords.length === 0) {
-        adjustedLlmResult.search_keywords = adjustedLlmResult.product_types?.length ? adjustedLlmResult.product_types : ['product'];
-      }
-      logger.warn({ searchKeywords: adjustedLlmResult.search_keywords }, 'Generated fallback search_keywords for product query.');
-    }
-
     let finalProductCards: ProductCardResponse[] = [];
-    let enhancedAdvice = adjustedLlmResult.advice;
+    let enhancedAdvice = llmResult.advice;
     let searchNote = '';
 
-    if (adjustedLlmResult.is_product_query) {
-      logger.info('LLM determined it is a product query. Performing product search...');
+    // Skip product search for non-product queries, fictional queries, or clarification queries
+    if (llmResult.is_product_query && !llmResult.is_fictional_product_query && !llmResult.is_clarification_needed) {
+      logger.info({ search_keywords: llmResult.search_keywords, product_types: llmResult.product_types }, 'LLM determined it is a product query. Performing product search...');
 
-      let searchKeywordsString = "";
-      if (Array.isArray(adjustedLlmResult.search_keywords) && adjustedLlmResult.search_keywords.length > 0) {
-        searchKeywordsString = adjustedLlmResult.search_keywords.join(" ");
+      let searchKeywordsString = '';
+      if (Array.isArray(llmResult.search_keywords) && llmResult.search_keywords.length > 0) {
+        searchKeywordsString = llmResult.search_keywords.join(' ');
       } else {
         const constructedKeywords: string[] = [];
-        if (Array.isArray(adjustedLlmResult.product_types)) constructedKeywords.push(...adjustedLlmResult.product_types);
-        if (Array.isArray(adjustedLlmResult.attributes)) constructedKeywords.push(...adjustedLlmResult.attributes);
-        searchKeywordsString = constructedKeywords.join(" ");
-        logger.warn({ constructedKeywords, originalLlmKeywords: adjustedLlmResult.search_keywords }, 'Constructed search keywords from product_types and attributes.');
+        if (Array.isArray(llmResult.product_types)) constructedKeywords.push(...llmResult.product_types);
+        if (Array.isArray(llmResult.attributes)) constructedKeywords.push(...llmResult.attributes);
+        searchKeywordsString = constructedKeywords.join(' ');
+        logger.warn({ constructedKeywords, originalLlmKeywords: llmResult.search_keywords }, 'Constructed search keywords from product_types and attributes.');
       }
 
       if (vectorIndex && searchKeywordsString.trim() !== '') {
-        logger.info({ searchKeywordsString }, 'Performing vector query with keywords.');
+        logger.info({ searchKeywordsString, requested_product_count: llmResult.requested_product_count }, 'Performing vector query with keywords.');
+        const topK = llmResult.requested_product_count || 1; // Respect requested_product_count
         const productQueryResults = await vectorIndex.query({
           data: searchKeywordsString,
-          topK: Math.max(3, (adjustedLlmResult.requested_product_count || 1) * 2 + 5),
+          topK: topK,
           includeMetadata: true,
-        }) as QueryResult<ProductVectorMetadata>[]; 
+        }) as QueryResult<ProductVectorMetadata>[];
 
         let filteredResults = productQueryResults.filter(match => match.metadata);
 
-        if (adjustedLlmResult.price_filter && adjustedLlmResult.price_filter.max_price) {
-          const maxPriceUSD = adjustedLlmResult.price_filter.max_price;
+        if (llmResult.price_filter && llmResult.price_filter.max_price) {
+          const maxPriceUSD = llmResult.price_filter.max_price;
           filteredResults = filteredResults.filter(match => {
             const priceInUSD = Number(match.metadata!.price);
             return !isNaN(priceInUSD) && priceInUSD <= maxPriceUSD;
           });
         }
 
-        if (adjustedLlmResult.attributes && adjustedLlmResult.attributes.length > 0) {
+        if (llmResult.attributes && llmResult.attributes.length > 0) {
           filteredResults = filteredResults.filter(match => {
             const searchableText = `${match.metadata!.title.toLowerCase()} ${match.metadata!.textForBM25?.toLowerCase() || ''} ${match.metadata!.tags?.join(' ').toLowerCase() || ''}`;
-            return adjustedLlmResult.attributes!.every(attr => searchableText.includes(attr.toLowerCase()));
+            return llmResult.attributes!.every(attr => searchableText.includes(attr.toLowerCase()));
           });
         }
 
-        if (adjustedLlmResult.sort_by_price) {
+        if (llmResult.sort_by_price) {
           filteredResults.sort((a, b) => Number(a.metadata!.price) - Number(b.metadata!.price));
         }
 
@@ -169,8 +136,7 @@ export async function POST(request: Request) {
           finalProductCards = filteredResults.map(match => {
             const p = match.metadata!;
             const priceNumber = Number(p.price);
-            const reasonForMatch = adjustedLlmResult.product_matches?.find(pm => pm.variantId === extractNumericIdFromGid(p.variantId || p.id || match.id))?.reasoning
-              || 'Relevant product based on your query.';
+            const reasonForMatch = 'Relevant product based on your query.';
             let finalDescription = reasonForMatch;
             if (finalDescription.length > MAX_DESCRIPTION_LENGTH) {
               finalDescription = finalDescription.substring(0, MAX_DESCRIPTION_LENGTH) + '...';
@@ -184,7 +150,7 @@ export async function POST(request: Request) {
               variantId: extractNumericIdFromGid(p.variantId || p.id || match.id),
             };
           });
-          logger.info({ count: finalProductCards.length, requested: adjustedLlmResult.requested_product_count }, 'Products found and mapped after filtering.');
+          logger.info({ count: finalProductCards.length, requested: llmResult.requested_product_count }, 'Products found and mapped after filtering.');
         } else {
           searchNote = `\n(No products found matching "${searchKeywordsString}". Try broadening your search!)`;
         }
@@ -192,33 +158,36 @@ export async function POST(request: Request) {
         searchNote = `\n(Product search unavailable as no effective keywords could be determined.)`;
       }
       enhancedAdvice += searchNote;
+    } else {
+      logger.info({ is_product_query: llmResult.is_product_query, is_fictional: llmResult.is_fictional_product_query, is_clarification_needed: llmResult.is_clarification_needed }, 'Skipping product search for non-product, fictional, or clarification query.');
     }
-    
+
     fullChatHistory.push({ role: 'assistant', content: enhancedAdvice });
 
-    const responseBody: ChatApiResponse = { 
+    const responseBody: ChatApiResponse = {
       advice: enhancedAdvice,
-      product_card: finalProductCards.length > 0 && adjustedLlmResult.requested_product_count === 1 ? finalProductCards[0] : undefined,
-      complementary_products: finalProductCards.length > 0 && adjustedLlmResult.requested_product_count !== 1 ? finalProductCards.slice(0, adjustedLlmResult.requested_product_count || 10) : undefined,
-      ai_understanding: adjustedLlmResult.ai_understanding,
-      history: fullChatHistory, 
+      product_card: llmResult.is_combo_set_query || llmResult.requested_product_count > 1 ? null : (finalProductCards.length > 0 ? finalProductCards[0] : null),
+      complementary_products: llmResult.is_combo_set_query || llmResult.requested_product_count > 1 ? finalProductCards.slice(0, llmResult.requested_product_count || 10) : null,
+      is_product_query: llmResult.is_product_query,
+      ai_understanding: llmResult.ai_understanding,
+      is_fictional_product_query: llmResult.is_fictional_product_query,
+      is_clarification_needed: llmResult.is_clarification_needed,
+      history: fullChatHistory,
     };
 
     await cacheResponse(userId, trimmedQuery, responseBody);
-    await cacheSessionHistory(userId, fullChatHistory); 
+    await cacheSessionHistory(userId, fullChatHistory);
 
-    if (adjustedLlmResult.is_product_query && finalProductCards.length === 0 && !searchNote.includes("No products found")) {
-      // This logic can be refined.
-    } else if (!adjustedLlmResult.is_product_query && enhancedAdvice) {
-       await updateKnowledgebase(
+    if (!llmResult.is_product_query && enhancedAdvice) {
+      await updateKnowledgebase(
         trimmedQuery,
-        enhancedAdvice, 
-        adjustedLlmResult.product_types,
-        adjustedLlmResult.attributes
+        enhancedAdvice,
+        llmResult.product_types,
+        llmResult.attributes
       );
     }
 
-    logger.info({ userId, query: trimmedQuery }, 'Chat response generated.');
+    logger.info({ userId, query: trimmedQuery, product_card: !!responseBody.product_card, complementary_products_count: responseBody.complementary_products?.length || 0 }, 'Chat response generated.');
     return NextResponse.json(responseBody);
   } catch (error) {
     logger.error({ error }, 'Error processing chat request.');

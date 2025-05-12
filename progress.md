@@ -17,7 +17,7 @@
 *   [x] Implement Rate Limiting (Unit tests fixed and passing)
 *   [x] Explore Deeper Shopify Integration: Basic unit tests added and passing.
 
-## Phase 3: Optimization, Refinement, and Testing (Largely Completed - May 12, 2025)
+## Phase 3: Scalability, Optimization, and Refinement (Largely Completed - May 12, 2025)
 
 *   [ ] Scalability Analysis
 *   [x] Code Documentation (Ongoing - inline comments and README updates reflecting current state as of May 12, 2025)
@@ -50,7 +50,9 @@
 *   [x] **Product Price & Description Formatting (`app/api/chat/route.ts`):** (Completed May 10/11)
 *   [x] **Linting & Build Errors:** (Ongoing fixes, latest batch May 12)
 *   [x] **Next.js Cache Cleared:** Removed `.next` directory to resolve runtime errors.
-*   [x] Update all relevant documentation (`README.md`, `actionable_todo.md`, `progress.md`, `feedback.md`, `project_structure.md`): **(Ongoing - May 12, 2025)**
+*   [x] Logic for assigning `product_card` and `complementary_products` corrected in `app/api/chat/route.ts`.
+*   [x] Updated `ProductVectorMetadata.price` to `number` in `lib/types.ts`.
+*   [x] Updated `scripts/populate-vector-index.ts` to fix id type error and enhance logging.
 
 ## Phase 4: New Architecture Implementation, Caching & Refinement (Ongoing - May 12, 2025)
 
@@ -78,7 +80,6 @@
 *   **[x] Build Configuration (`tsconfig.json`):** Excluded reference file from build. (Completed May 10)
 *   **[x] Centralized Types (`lib/types.ts`):**
     *   Ensured type consistency. (Completed May 10)
-    *   **[New - May 11]** Added `product_matches` to `LLMStructuredResponse`.
 *   **[x] Simulation Testing (`simulate-chat.ts`):** Used extensively for iterative debugging. Updated to tolerate empty vector index. (Ongoing from May 10, refined May 11/12)
 *   **[x] Iterative Debugging:** Multiple rounds of simulation, log analysis, and code/prompt fixes. (Ongoing from May 10, continued May 11/12)
 *   **[x] ESLint Configuration Update (`.eslintrc.json`):** Ignored `lib/upstash-vector-reference.ts`. (Completed May 11)
@@ -86,8 +87,3 @@
     *   (Details retained for history)
 *   **[x] AI-Generated Suggested Questions (Refined - May 11):**
     *   (Details retained for history)
-*   **[x] Build and Lint Success:** Ensured `npm run lint` and `npm run build` pass after all May 11 & May 12 changes.
-*   **Simulation Run (Post Caching/KB - To Be Re-evaluated):**
-    *   `simulate-chat.ts` run needs to be performed to assess impact of new features and fixes.
-    *   Previous (May 11): 8 out of 16 test cases PASSING.
-    *   Persistent issues (from May 11, to be re-checked): LLM interpretation of `requested_product_count`, price filters, vendor queries, gibberish handling, set/combo counts, and follow-up clarifications.

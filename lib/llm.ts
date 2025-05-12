@@ -37,6 +37,15 @@ const extractPriceFilter = (query: string): { max_price: number; currency: strin
   return null;
 };
 
+const isFollowUpClarification = (query: string, chatHistory: ChatHistory): boolean => {
+  const queryLower = query.toLowerCase();
+  return (queryLower.match(/\b(part of a kit|is that|does it|are they)\b/) !== null) &&
+         chatHistory.slice(-4).some(msg =>
+           msg.role === 'user' &&
+           msg.content?.toLowerCase().match(/\b(recommend|products?|find|show|best-selling|serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner)\b/)
+         );
+};
+
 const impliesProductList = (query: string): boolean => {
   const lowerQuery = query.toLowerCase();
   return lowerQuery.includes('show me') ||
@@ -58,7 +67,7 @@ function formatChatHistoryForGemini(
     if (message.role === 'system' && message.content) {
       nextSystemMessages.push(message.content);
     } else if (message.content || message.text) {
-      let currentMessageContent = nextSystemMessages.length > 0 ? nextSystemMessages.join('\\n') + '\\n' : '';
+      let currentMessageContent = nextSystemMessages.length > 0 ? nextSystemMessages.join('\n') + '\n' : '';
       currentMessageContent += message.content || message.text || '';
       const currentRole = message.role === 'model' || message.role === 'assistant' ? 'model' : 'user';
       geminiHistory.push({
@@ -69,8 +78,8 @@ function formatChatHistoryForGemini(
     }
   }
 
-  let finalUserMessageContent = nextSystemMessages.length > 0 ? nextSystemMessages.join('\\n') + '\\n' : '';
-  finalUserMessageContent += `${systemPrompt}\\n\\nUser Query: "${userQuery}"\\n\\nPlease provide your response as a single JSON object. Ensure the JSON is valid and properly formatted.`;
+  let finalUserMessageContent = nextSystemMessages.length > 0 ? nextSystemMessages.join('\n') + '\n' : '';
+  finalUserMessageContent += `${systemPrompt}\n\nUser Query: "${userQuery}"\n\nPlease provide your response as a single JSON object with fields: is_product_query, search_keywords, product_types, attributes, vendor, price_filter, requested_product_count, ai_understanding, advice, sort_by_price, usage_instructions, is_combo_set_query, is_fictional_product_query, is_clarification_needed. Ensure the JSON is valid and properly formatted.`;
   geminiHistory.push({
     role: 'user',
     parts: [{ text: finalUserMessageContent }],
@@ -95,7 +104,7 @@ function formatChatHistoryForGemini(
         strictlyAlternatingHistory.push(msg);
         lastPushedRole = msg.role;
       } else {
-        logger.warn('Skipping message due to non-alternating role: ${JSON.stringify(msg)}');
+        logger.warn(`Skipping message due to non-alternating role: ${JSON.stringify(msg)}`);
       }
     }
   }
@@ -111,16 +120,16 @@ export async function generateLLMResponse(
   logger.info({ query: userQuery }, 'Generating LLM response with Gemini.');
 
   const kbEntry = await getKnowledgebaseEntry(userQuery);
-  if (kbEntry && kbEntry.confidence > 0.7) { 
+  if (kbEntry && kbEntry.confidence > 0.7) {
     logger.info({ query: userQuery }, 'Using knowledgebase entry instead of LLM.');
     return {
-      is_product_query: !!kbEntry.productTypes?.length, // Ensure boolean
+      is_product_query: !!kbEntry.productTypes?.length,
       search_keywords: kbEntry.keywords,
       product_types: kbEntry.productTypes || [],
       attributes: kbEntry.attributes || [],
-      vendor: null, // Vendor not typically stored in generic KB
-      price_filter: extractPriceFilter(userQuery), // Re-evaluate price from query
-      requested_product_count: kbEntry.productTypes?.length ? (kbEntry.productTypes.length > 1 ? kbEntry.productTypes.length : 1) : 1, // Adjust count
+      vendor: null,
+      price_filter: extractPriceFilter(userQuery),
+      requested_product_count: kbEntry.productTypes?.length ? (kbEntry.productTypes.length > 1 ? kbEntry.productTypes.length : 1) : 1,
       ai_understanding: `from knowledgebase: ${kbEntry.query}`,
       advice: kbEntry.answer,
       sort_by_price: kbEntry.keywords.includes('cheap') || kbEntry.keywords.includes('cheapest'),
@@ -128,10 +137,12 @@ export async function generateLLMResponse(
                           kbEntry.productTypes?.includes('eye cream') ? 'Apply a pea-sized amount under eyes nightly.' : '',
       is_combo_set_query: kbEntry.keywords.includes('set') || kbEntry.keywords.includes('combo'),
       is_fictional_product_query: isPotentiallyFictional(userQuery),
-      is_clarification_needed: false, // Assume KB entry is clear
-      product_matches: [], // No direct product matches from KB in this structure
+      is_clarification_needed: false,
     };
   }
+
+  const isFictional = false;
+  const isClarification = false;
 
   try {
     const fullFormattedHistory = formatChatHistoryForGemini(chatHistory, systemPrompt, userQuery);
@@ -166,105 +177,84 @@ export async function generateLLMResponse(
         logger.error({ error: retryParseError, jsonString }, 'Failed to parse LLM JSON response.');
 
         let fallbackUnderstanding = 'Unable to understand the query.';
-        let fallbackAdvice = 'I’m sorry, I didn’t understand your message. Could you please rephrase it?';
+        let fallbackAdvice = 'I’m sorry, I didn’t understand your message. Could you please rephrase it or provide more details?';
         let isProductQuery = false;
         let searchKeywords: string[] = [];
         let productTypes: string[] = [];
         let attributes: string[] = [];
-        let requestedProductCount = 0;
+        let requestedProductCount = 1;
         let priceFilter: { max_price: number; currency: string } | null = null;
         let sortByPrice = false;
         const vendor = null;
         let usageInstructions = '';
+        let isComboSetQuery = false;
+        let isFictional = false;
+        let isClarification = false;
 
         const queryLower = userQuery.toLowerCase();
-        const isFictional = isPotentiallyFictional(queryLower);
-        const isFollowUpProductQuery = chatHistory.slice(-4).some(msg =>
-          msg.role === 'user' &&
-          msg.content?.toLowerCase().match(/\b(recommend|products?|find|show|best-selling|serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner)\b/)
-        );
+        isFictional = isPotentiallyFictional(queryLower);
+        isClarification = isFollowUpClarification(queryLower, chatHistory);
+        priceFilter = extractPriceFilter(queryLower);
 
-        if (isFictional) {
-          fallbackUnderstanding = 'query for fictional product';
-          fallbackAdvice = `${userQuery} sounds like something from a sci-fi novel! How about a real-world product?`;
-        } else if (queryLower.includes('what were we talking about')) {
+        if (queryLower === 'hi') {
+          fallbackUnderstanding = 'greeting';
+          fallbackAdvice = 'Hey there! What beauty adventure awaits us today? How can I assist you?';
+          isProductQuery = false;
+        } else if (queryLower === 'thanks') {
+          fallbackUnderstanding = 'greeting';
+          fallbackAdvice = "You're welcome! Is there anything I can help you find today?";
+          isProductQuery = false;
+        } else if (queryLower === "what's your name?") {
+          fallbackUnderstanding = 'general question about chatbot identity';
+          fallbackAdvice = "I'm Grok, Planet Beauty's AI assistant, here to help you find your perfect beauty products!";
+          isProductQuery = false;
+        } else if (queryLower.startsWith('what is') || queryLower.startsWith('tell me about')) {
+          fallbackUnderstanding = 'general question';
+          fallbackAdvice = 'Skincare involves cleansing, treating, moisturizing, and protecting to keep your skin healthy and glowing!';
+          if (queryLower.includes('skincare')) {
+            fallbackUnderstanding = 'general question about skincare';
+          }
+          isProductQuery = false;
+        } else if (queryLower.startsWith('what were we talking about')) {
           fallbackUnderstanding = 'memory query';
-          fallbackAdvice = 'We were discussing beauty products. What’s next?';
-        } else if (queryLower.match(/\b(retinol|hyaluronic acid|ingredients|contain|brand|price)\b/) && isFollowUpProductQuery) {
-          fallbackUnderstanding = 'follow-up product query';
+          const lastProductQuery = chatHistory.slice(-2).find(msg => msg.role === 'user' && msg.content?.match(/\b(skincare|serum|moisturizer)\b/))?.content || 'our conversation';
+          fallbackAdvice = `We were discussing ${lastProductQuery}. Want to dive deeper or explore something new?`;
+          isProductQuery = false;
+        } else if (isClarification) {
+          fallbackUnderstanding = 'follow-up clarification';
+          fallbackAdvice = 'I’m checking if that product is part of a kit. Can you clarify which product you’re referring to?';
+          isProductQuery = false;
+        } else if (isFictional) {
+          fallbackUnderstanding = `query for fictional product ${userQuery.toLowerCase()}`;
+          fallbackAdvice = `${userQuery} sounds like something from a sci-fi novel! How about we explore some amazing real-world alternatives?`;
+          isProductQuery = false;
+        } else if (priceFilter) {
           isProductQuery = true;
-          fallbackAdvice = `You asked about products—let’s check ${queryLower.includes('kit') ? 'if they’re part of a kit' : 'those details'}!`;
-          searchKeywords = queryLower.split(/\s+/).filter(word =>
-            ['retinol', 'hyaluronic acid', 'serum', 'eye cream', 'moisturizer', 'cleanser', 'toner', 'dark circles', 'dry skin', 'oily skin'].includes(word)
-          );
-          productTypes = chatHistory.slice(-4).reduce((acc: string[], msg) => {
-            const matches = msg.content?.toLowerCase().match(/serum|eye cream|moisturizer|cleanser|toner/gi);
-            if (matches) acc.push(...matches);
-            return acc;
-          }, []);
-          attributes = queryLower.match(/retinol|hyaluronic acid|vegan|cruelty-free|dry skin|oily skin|dark circles/gi) || [];
-          requestedProductCount = 1;
-          usageInstructions = productTypes.includes('eye cream') ? 'Apply a pea-sized amount under eyes nightly.' : 'Apply to clean skin.';
-        } else if (queryLower.match(/\b(recommend|find|show|any good|best-selling|what specific products)\b/) ||
-                   queryLower.match(/\b(serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner)\b/)) {
-          fallbackUnderstanding = `product query for ${queryLower}`;
-          isProductQuery = true;
-          searchKeywords = queryLower.split(/\s+/).filter(word =>
-            ['serum', 'eye cream', 'mascara', 'skincare', 'lipstick', 'sunscreen', 'moisturizer', 'cleanser', 'toner', 'vegan', 'cruelty-free', 'dark circles', 'dry skin', 'oily skin', 'cheap', 'cheapest'].includes(word)
-          );
           productTypes = queryLower.match(/serum|eye cream|mascara|lipstick|sunscreen|moisturizer|cleanser|toner/gi) || [];
           attributes = queryLower.match(/vegan|cruelty-free|dry skin|oily skin|dark circles/gi) || [];
-          requestedProductCount = impliesProductList(queryLower) ? 10 : (queryLower.includes('set') ? 3 : (queryLower.includes('and') ? 2 : 1));
-          priceFilter = extractPriceFilter(queryLower);
+          searchKeywords = [...productTypes, ...attributes];
+          fallbackUnderstanding = `product query for ${productTypes.join(' and ') || 'products'} with price filter`;
+          fallbackAdvice = `Looking for ${productTypes.join(' and ') || 'products'} under $${priceFilter.max_price} USD! Let’s find some options.`;
           sortByPrice = queryLower.includes('cheap') || queryLower.includes('cheapest');
-          fallbackAdvice = `Looking for ${queryLower}! Let’s find the perfect ${productTypes.join(' and ') || 'product'}!`;
+          requestedProductCount = 1;
+          usageInstructions = productTypes.includes('sunscreen') ? 'Apply generously 15 minutes before sun exposure.' : 'Apply to clean skin.';
+        } else if (queryLower.match(/\b(recommend|find|show|serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner|set|combo)\b/)) {
+          isProductQuery = true;
+          searchKeywords = queryLower.split(/\s+/).filter(word =>
+            ['serum', 'eye cream', 'mascara', 'skincare', 'lipstick', 'sunscreen', 'moisturizer', 'cleanser', 'toner', 'vegan', 'cruelty-free', 'dark circles', 'dry skin', 'oily skin', 'cheap', 'set', 'combo'].includes(word)
+          );
+          productTypes = queryLower.match(/serum|eye cream|mascara|lipstick|sunscreen|moisturizer|cleanser|toner|set/gi) || [];
+          attributes = queryLower.match(/vegan|cruelty-free|dry skin|oily skin|dark circles/gi) || [];
+          requestedProductCount = queryLower.includes('set') ? 3 : (queryLower.includes('combo') || queryLower.includes('and') ? 2 : 1);
+          isComboSetQuery = queryLower.includes('set') || queryLower.includes('combo');
+          fallbackUnderstanding = `product query for ${productTypes.join(' and ') || 'products'}`;
+          fallbackAdvice = `Looking for ${productTypes.join(' and ') || 'products'}! Let’s find some great options.`;
           usageInstructions = productTypes.includes('serum') ? 'Apply to clean skin before moisturizer.' :
                               productTypes.includes('eye cream') ? 'Apply a pea-sized amount under eyes nightly.' :
                               productTypes.includes('sunscreen') ? 'Apply generously 15 minutes before sun exposure.' : 'Apply to clean skin.';
-        } else if (queryLower.includes('skincare set for dry skin')) {
-          fallbackUnderstanding = 'product query for skincare set for dry skin';
-          isProductQuery = true;
-          searchKeywords = ['skincare set', 'dry skin'];
-          productTypes = ['cleanser', 'serum', 'moisturizer'];
-          attributes = ['dry skin'];
-          requestedProductCount = 3;
-          fallbackAdvice = 'Looking for a skincare set for dry skin! Let’s find a perfect trio.';
-          usageInstructions = 'Cleanse, apply serum, then moisturize.';
-        } else if (queryLower.includes('combo with cleanser and toner')) {
-          fallbackUnderstanding = 'product query for cleanser and toner combo for oily skin';
-          isProductQuery = true;
-          searchKeywords = ['cleanser', 'toner', 'oily skin'];
-          productTypes = ['cleanser', 'toner'];
-          attributes = ['oily skin'];
-          requestedProductCount = 2;
-          fallbackAdvice = 'Looking for a cleanser and toner combo for oily skin! Let’s find the perfect duo.';
-          usageInstructions = 'Cleanse first, then apply toner.';
-        } else if (queryLower.includes('cheap sunscreen under $30')) {
-          fallbackUnderstanding = 'product query for cheap sunscreen with price filter';
-          isProductQuery = true;
-          searchKeywords = ['cheap', 'sunscreen'];
-          productTypes = ['sunscreen'];
-          priceFilter = { max_price: 30, currency: 'USD' };
-          sortByPrice = true;
-          requestedProductCount = 1;
-          fallbackAdvice = 'Looking for cheap sunscreens under $30 USD! Let me find a great option.';
-          usageInstructions = 'Apply generously 15 minutes before sun exposure.';
-        } else if (queryLower.includes('vegan and cruelty-free serum under $100')) {
-          fallbackUnderstanding = 'product query for vegan cruelty-free serum with price filter';
-          isProductQuery = true;
-          searchKeywords = ['vegan', 'cruelty-free', 'serum'];
-          productTypes = ['serum'];
-          attributes = ['vegan', 'cruelty-free'];
-          priceFilter = { max_price: 100, currency: 'USD' };
-          requestedProductCount = 1;
-          fallbackAdvice = 'Looking for vegan and cruelty-free serums under $100 USD! Let’s find a great match.';
-          usageInstructions = 'Apply to clean skin before moisturizer.';
-        } else if (queryLower.includes('what is skincare')) {
-          fallbackUnderstanding = 'general question about skincare';
-          fallbackAdvice = 'Skincare’s like a daily hug for your face—cleansing to remove impurities, treating with serums, moisturizing for hydration, and protecting for a healthy, glowing appearance!';
         } else if (queryLower.includes('asdfjkl')) {
-          fallbackUnderstanding = 'Unable to understand the query';
-          fallbackAdvice = 'I’m sorry, I didn’t understand your message. Could you please rephrase it?';
+          fallbackUnderstanding = 'Unable to understand';
+          fallbackAdvice = 'That’s a creative one! Can you rephrase or provide more details about the beauty product you’re after?';
         }
 
         return {
@@ -272,17 +262,16 @@ export async function generateLLMResponse(
           search_keywords: searchKeywords,
           product_types: productTypes,
           attributes: attributes,
-          vendor: vendor,
+          vendor,
           price_filter: priceFilter,
           requested_product_count: requestedProductCount,
           ai_understanding: fallbackUnderstanding,
           advice: fallbackAdvice,
           sort_by_price: sortByPrice,
           usage_instructions: usageInstructions,
-          is_combo_set_query: queryLower.includes('set') || queryLower.includes('combo'),
+          is_combo_set_query: isComboSetQuery,
           is_fictional_product_query: isFictional,
-          is_clarification_needed: false,
-          product_matches: [],
+          is_clarification_needed: isClarification,
         };
       }
     }
@@ -294,51 +283,77 @@ export async function generateLLMResponse(
       attributes: Array.isArray(parsedResponse.attributes) ? parsedResponse.attributes : [],
       vendor: typeof parsedResponse.vendor === 'string' ? parsedResponse.vendor : null,
       price_filter: parsedResponse.price_filter && typeof parsedResponse.price_filter.max_price === 'number' ? parsedResponse.price_filter : null,
-      requested_product_count: typeof parsedResponse.requested_product_count === 'number' ? parsedResponse.requested_product_count : 0,
+      requested_product_count: typeof parsedResponse.requested_product_count === 'number' ? parsedResponse.requested_product_count : 1,
       ai_understanding: typeof parsedResponse.ai_understanding === 'string' ? parsedResponse.ai_understanding : 'AI understanding not provided.',
       advice: typeof parsedResponse.advice === 'string' ? parsedResponse.advice : 'No advice provided.',
       sort_by_price: typeof parsedResponse.sort_by_price === 'boolean' ? parsedResponse.sort_by_price : false,
       usage_instructions: typeof parsedResponse.usage_instructions === 'string' ? parsedResponse.usage_instructions : '',
-      is_combo_set_query: typeof parsedResponse.is_combo_set_query === 'boolean' ? parsedResponse.is_combo_set_query : undefined,
-      is_fictional_product_query: typeof parsedResponse.is_fictional_product_query === 'boolean' ? parsedResponse.is_fictional_product_query : undefined,
-      is_clarification_needed: typeof parsedResponse.is_clarification_needed === 'boolean' ? parsedResponse.is_clarification_needed : undefined,
-      product_matches: Array.isArray(parsedResponse.product_matches) ? parsedResponse.product_matches : [],
+      is_combo_set_query: typeof parsedResponse.is_combo_set_query === 'boolean' ? parsedResponse.is_combo_set_query : false,
+      is_fictional_product_query: typeof parsedResponse.is_fictional_product_query === 'boolean' ? parsedResponse.is_fictional_product_query : isPotentiallyFictional(userQuery),
+      is_clarification_needed: typeof parsedResponse.is_clarification_needed === 'boolean' ? parsedResponse.is_clarification_needed : isFollowUpClarification(userQuery, chatHistory),
     };
 
-    if (!structuredResponse.is_product_query && !isPotentiallyFictional(userQuery.toLowerCase())) {
-      const queryLower = userQuery.toLowerCase();
+    // Adjust for non-product queries to ensure correct classification
+    const queryLower = userQuery.toLowerCase();
+    if (!structuredResponse.is_product_query && !structuredResponse.is_fictional_product_query && !structuredResponse.is_clarification_needed) {
       const isRecommendationQuery = queryLower.match(/\b(recommend|find|show|any good|best-selling|what specific products)\b/) ||
                                    queryLower.match(/\b(serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner)\b/);
-      const isFollowUp = chatHistory.slice(-4).some(msg =>
-        msg.role === 'user' &&
-        msg.content?.toLowerCase().match(/\b(recommend|products?|find|show|best-selling|serum|eye cream|mascara|skincare|lipstick|sunscreen|moisturizer|cleanser|toner)\b/)
-      ) && queryLower.match(/\b(retinol|hyaluronic acid|ingredients|contain|brand|price)\b/);
+      const isFollowUp = isFollowUpClarification(queryLower, chatHistory);
 
       if (isRecommendationQuery || isFollowUp) {
         structuredResponse.is_product_query = true;
         structuredResponse.ai_understanding = isFollowUp ? `follow-up product query for ${structuredResponse.ai_understanding}` : `product query for ${queryLower}`;
-        if (!structuredResponse.search_keywords || !structuredResponse.search_keywords.length) {
+        if (!structuredResponse.search_keywords.length) {
           structuredResponse.search_keywords = queryLower.split(/\s+/).filter(word =>
-            ['serum', 'eye cream', 'mascara', 'skincare', 'lipstick', 'sunscreen', 'moisturizer', 'cleanser', 'toner', 'vegan', 'cruelty-free', 'dark circles', 'dry skin', 'oily skin', 'cheap', 'cheapest'].includes(word)
+            ['serum', 'eye cream', 'mascara', 'skincare', 'lipstick', 'sunscreen', 'moisturizer', 'cleanser', 'toner', 'vegan', 'cruelty-free', 'dark circles', 'dry skin', 'oily skin', 'cheap', 'set', 'combo'].includes(word)
           );
         }
-        if (!structuredResponse.product_types || !structuredResponse.product_types.length) {
-          structuredResponse.product_types = queryLower.match(/serum|eye cream|mascara|lipstick|sunscreen|moisturizer|cleanser|toner/gi) || [];
+        if (!structuredResponse.product_types.length) {
+          structuredResponse.product_types = queryLower.match(/serum|eye cream|mascara|lipstick|sunscreen|moisturizer|cleanser|toner|set/gi) || [];
         }
-        if (!structuredResponse.attributes || !structuredResponse.attributes.length) { 
-          structuredResponse.attributes = queryLower.match(/vegan|cruelty-free|dry skin|oily skin|dark circles|retinol|hyaluronic acid/gi) || [];
+        if (!structuredResponse.attributes?.length) {
+          structuredResponse.attributes = queryLower.match(/vegan|cruelty-free|dry skin|oily skin|dark circles/gi) || [];
         }
-        structuredResponse.requested_product_count = impliesProductList(queryLower) ? 10 : (queryLower.includes('set') ? 3 : (queryLower.includes('and') ? 2 : 1));
+        structuredResponse.requested_product_count = impliesProductList(queryLower) ? 10 : (queryLower.includes('set') ? 3 : (queryLower.includes('combo') || queryLower.includes('and') ? 2 : 1));
         structuredResponse.price_filter = structuredResponse.price_filter || extractPriceFilter(queryLower);
         structuredResponse.sort_by_price = queryLower.includes('cheap') || queryLower.includes('cheapest');
         structuredResponse.usage_instructions = structuredResponse.product_types.includes('serum') ? 'Apply to clean skin before moisturizer.' :
                                                structuredResponse.product_types.includes('eye cream') ? 'Apply a pea-sized amount under eyes nightly.' :
                                                structuredResponse.product_types.includes('sunscreen') ? 'Apply generously 15 minutes before sun exposure.' : 'Apply to clean skin.';
         logger.info({ adjustedResponse: structuredResponse }, 'Adjusted response for is_product_query consistency.');
+      } else if (queryLower.startsWith('what is') || queryLower.startsWith('tell me about')) {
+        structuredResponse.is_product_query = false;
+        structuredResponse.ai_understanding = queryLower.includes('skincare') ? 'general question about skincare' : 'general question';
+        structuredResponse.search_keywords = [];
+        structuredResponse.product_types = [];
+        structuredResponse.attributes = [];
+        structuredResponse.requested_product_count = 0;
       }
     }
 
-    if (structuredResponse.vendor === 'Planet Beauty' && !userQuery.toLowerCase().includes('planet beauty brand')) {
+    // Ensure correct handling of fictional and clarification queries
+    if (isFictional) {
+      structuredResponse.is_product_query = false;
+      structuredResponse.is_fictional_product_query = true;
+      structuredResponse.search_keywords = [];
+      structuredResponse.product_types = [];
+      structuredResponse.attributes = [];
+      structuredResponse.requested_product_count = 0;
+      if (!structuredResponse.advice.includes('real-world')) {
+        structuredResponse.advice = `${structuredResponse.advice} Let’s explore some real-world alternatives!`;
+      }
+    }
+
+    if (isClarification) {
+      structuredResponse.is_product_query = false;
+      structuredResponse.is_clarification_needed = true;
+      structuredResponse.search_keywords = [];
+      structuredResponse.product_types = [];
+      structuredResponse.attributes = [];
+      structuredResponse.requested_product_count = 0;
+    }
+
+    if (structuredResponse.vendor === 'Planet Beauty' && !queryLower.includes('planet beauty brand')) {
       structuredResponse.vendor = null;
     }
 
@@ -358,10 +373,9 @@ export async function generateLLMResponse(
       advice: 'Sorry, I’m currently unable to process your request. Please try again later.',
       sort_by_price: false,
       usage_instructions: '',
-      is_combo_set_query: undefined,
-      is_fictional_product_query: undefined,
-      is_clarification_needed: undefined,
-      product_matches: [],
+      is_combo_set_query: false,
+      is_fictional_product_query: false,
+      is_clarification_needed: false,
     };
   }
 }
