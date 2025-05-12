@@ -205,7 +205,7 @@ Product synchronization (`app/api/sync-products/route.ts`) populates the vector 
 
 ## 🔑 Environment Variables (Essential - Updated)
 *   `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
-*   `UPSTASH_VECTOR_REST_URL`, `UPSTASH_VECTOR_TOKEN` (UPSTASH_VECTOR_URL is for presence check only)
+*   `UPSTASH_REDIS_REST_TOKEN`, `UPSTASH_REDIS_REST_TOKEN` (UPSTASH_VECTOR_REST_URL is for presence check only)
 *   **`GEMINI_API_KEY` (for the Google Gemini LLM)**
 *   `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ADMIN_ACCESS_TOKEN`
 *   `MAX_CHAT_HISTORY` (optional, defaults to 10)

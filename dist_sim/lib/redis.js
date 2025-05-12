@@ -1,16 +1,16 @@
 // lib/redis.ts
-import { Index } from '@upstash/vector';
 import { Redis as UpstashRedis } from '@upstash/redis';
+import { Index } from '@upstash/vector';
 export const UPSTASH_VECTOR_INDEX_NAME = 'idx:products_vss';
 // Updated to use the consistent Upstash Vector environment variables
-if (!process.env.UPSTASH_VECTOR_URL || !process.env.UPSTASH_VECTOR_TOKEN) {
-    throw new Error('Missing Upstash Vector credentials. Set UPSTASH_VECTOR_URL (for presence check), UPSTASH_VECTOR_REST_URL (for actual URL), and UPSTASH_VECTOR_TOKEN in .env.local.');
+if (!process.env.UPSTASH_VECTOR_REST_URL || !process.env.UPSTASH_VECTOR_REST_TOKEN) {
+    throw new Error('Missing Upstash Vector credentials. Set UPSTASH_VECTOR_REST_URL (for presence check), UPSTASH_VECTOR_REST_URL (for actual URL), and UPSTASH_VECTOR_REST_TOKEN in .env.local.');
 }
 export const vectorIndex = new Index({
     // Use UPSTASH_VECTOR_REST_URL for the actual URL, consistent with app/api/chat/route.ts
-    // The .env.local should have UPSTASH_VECTOR_REST_URL defined (e.g., can be same as UPSTASH_VECTOR_URL)
+    // The .env.local should have UPSTASH_VECTOR_REST_URL defined (e.g., can be same as UPSTASH_VECTOR_REST_URL)
     url: process.env.UPSTASH_VECTOR_REST_URL, // Add non-null assertion as check is above
-    token: process.env.UPSTASH_VECTOR_TOKEN, // Add non-null assertion
+    token: process.env.UPSTASH_VECTOR_REST_TOKEN, // Add non-null assertion
 });
 export const redisClient = new UpstashRedis({
     url: process.env.UPSTASH_REDIS_REST_URL,

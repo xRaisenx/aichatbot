@@ -10,7 +10,7 @@ export const logger = pino({ level: 'info' });
 
 export const vectorIndex = new Index<ProductVectorMetadata>({
   url: process.env.UPSTASH_VECTOR_REST_URL || '',
-  token: process.env.UPSTASH_VECTOR_TOKEN || '',
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN || '',
 });
 
 // Sample products to match simulate-chat.ts test cases

@@ -3,10 +3,10 @@ import { Index as VectorIndex } from '@upstash/vector';
 import { NextResponse } from 'next/server';
 // Initialize Upstash vector client
 // Explicitly type the index with the metadata structure
-const vectorIndex = process.env.UPSTASH_VECTOR_URL && process.env.UPSTASH_VECTOR_TOKEN
+const vectorIndex = process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_REST_TOKEN
     ? new VectorIndex({
-        url: (process.env.UPSTASH_VECTOR_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
-        token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+        url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+        token: (process.env.UPSTASH_VECTOR_REST_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
     })
     : null;
 // Constants

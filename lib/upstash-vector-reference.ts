@@ -48,7 +48,7 @@ type ProductMetadata = {
 
 const index = new Index<ProductMetadata>({
   url: process.env.UPSTASH_VECTOR_REST_URL!, // Ensure these are set in your environment
-  token: process.env.UPSTASH_VECTOR_TOKEN!,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
 });
 
 // --- Upsert Operations ---

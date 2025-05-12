@@ -206,7 +206,7 @@ export async function generateLLMResponse(
           isProductQuery = false;
         } else if (queryLower === "what's your name?") {
           fallbackUnderstanding = 'general question about chatbot identity';
-          fallbackAdvice = "I'm Grok, Planet Beauty's AI assistant, here to help you find your perfect beauty products!";
+          fallbackAdvice = "I'm Bella, Planet Beauty's AI assistant, here to help you find your perfect beauty products!";
           isProductQuery = false;
         } else if (queryLower.startsWith('what is') || queryLower.startsWith('tell me about')) {
           fallbackUnderstanding = 'general question';

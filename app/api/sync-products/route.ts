@@ -21,10 +21,10 @@ type SparseVectorRecord = {
   metadata: VectorMetadata;
 };
 
-const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_TOKEN
+const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_REST_TOKEN
   ? new VectorIndex<VectorMetadata>({
       url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
-      token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+      token: (process.env.UPSTASH_VECTOR_REST_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
     })
   : null;
 

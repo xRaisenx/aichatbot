@@ -6,7 +6,7 @@ global.Request = fetch.Request; // Overwrite the existing simple Request mock
 
 // Set dummy env vars for tests with valid URL formats
 process.env.UPSTASH_VECTOR_REST_URL = 'https://dummy-vector-url.example.com';
-process.env.UPSTASH_VECTOR_TOKEN = 'dummy-vector-token-setup';
+process.env.UPSTASH_VECTOR_REST_TOKEN = 'dummy-vector-token-setup';
 process.env.GEMINI_API_KEY = 'dummy-gemini-key-setup';
 process.env.UPSTASH_REDIS_REST_URL = 'https://dummy-redis-url.example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-redis-token-setup';

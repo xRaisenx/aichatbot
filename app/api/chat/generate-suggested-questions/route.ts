@@ -57,7 +57,7 @@ function getContextualQuestionsPrompt(conversationHistoryText: string): string {
     --- END OF CONVERSATION HISTORY ---
 
     Based on this conversation, generate exactly 3 distinct, relevant, and concise follow-up questions that the user might ask next to continue the conversation productively or explore related topics.
-    The questions should be natural and encourage further interaction.
+    The questions should be natural and encourage further interaction. Strictly avoid generating questions about ratings, trials, sizing, and not related to beauty products and wellness.
     Avoid questions that have already been clearly answered or are too generic if the context is specific.
 
     Return ONLY a valid JSON array of 3 strings, where each string is a question.

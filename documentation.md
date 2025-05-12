@@ -2,7 +2,7 @@
 
 ## populate-vector-index.ts
 
-*   **Added dotenv Configuration:** Added `import { config } from 'dotenv'; config();` to load environment variables, ensuring `UPSTASH_VECTOR_REST_URL` and `UPSTASH_VECTOR_TOKEN` are available.
+*   **Added dotenv Configuration:** Added `import { config } from 'dotenv'; config();` to load environment variables, ensuring `UPSTASH_VECTOR_REST_URL` and `UPSTASH_VECTOR_REST_TOKEN` are available.
     *   **Impact:** Prevents runtime errors due to missing environment variables.
 *   **Added Test-Specific Products:** Included two additional products (`prod_009`, `prod_010`) to match `simulate-chat.ts` test cases (e.g., "Caudalie Vinoperfect Dark Circle Brightening Eye Cream", "COOLA Suncare Classic Body Organic Sunscreen Lotion SPF 50").
     *   **Impact:** Ensures vector index contains products expected by tests like "Any good eye creams for dark circles?" and "cheap sunscreen under $30".

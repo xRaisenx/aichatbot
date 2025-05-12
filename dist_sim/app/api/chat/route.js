@@ -41,22 +41,22 @@ const chatHistoryCache = new LRUCache({
 /** Upstash Vector client instance. Initialized using environment variables. */
 let vectorIndex = null; // Explicitly type with ProductVectorMetadata
 // const VECTOR_TIMEOUT_MS = 15000; // Timeout configuration removed as it's not directly supported here
-// Attempt to initialize Vector client using UPSTASH_VECTOR_URL and UPSTASH_VECTOR_TOKEN
-if (process.env.UPSTASH_VECTOR_URL && process.env.UPSTASH_VECTOR_TOKEN) {
+// Attempt to initialize Vector client using UPSTASH_VECTOR_REST_URL and UPSTASH_VECTOR_REST_TOKEN
+if (process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_REST_TOKEN) {
     try {
         vectorIndex = new Index({
             url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
-            token: (process.env.UPSTASH_VECTOR_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
+            token: (process.env.UPSTASH_VECTOR_REST_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
             // requestTimeout: VECTOR_TIMEOUT_MS, // Removed: Not a valid property in IndexConfig
         });
-        logger.info('Upstash Vector client initialized with UPSTASH_VECTOR_URL.');
+        logger.info('Upstash Vector client initialized with UPSTASH_VECTOR_REST_URL.');
     }
     catch (error) {
-        logger.error({ err: error }, 'Failed to initialize Vector with UPSTASH_VECTOR_URL.');
+        logger.error({ err: error }, 'Failed to initialize Vector with UPSTASH_VECTOR_REST_URL.');
     }
 }
 else {
-    logger.error('Missing Upstash Vector credentials (UPSTASH_VECTOR_URL or UPSTASH_VECTOR_TOKEN).');
+    logger.error('Missing Upstash Vector credentials (UPSTASH_VECTOR_REST_URL or UPSTASH_VECTOR_REST_TOKEN).');
 }
 /** Google Generative AI client instance. */
 let genAI = null;

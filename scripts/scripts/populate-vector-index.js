@@ -46,7 +46,7 @@ var pino_1 = require("pino");
 exports.logger = (0, pino_1.default)({ level: 'info' });
 exports.vectorIndex = new vector_1.Index({
     url: process.env.UPSTASH_VECTOR_REST_URL || '',
-    token: process.env.UPSTASH_VECTOR_TOKEN || '',
+    token: process.env.UPSTASH_VECTOR_REST_TOKEN || '',
 });
 // Sample products to match simulate-chat.ts test cases
 exports.sampleProducts = [

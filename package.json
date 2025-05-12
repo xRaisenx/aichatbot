@@ -20,7 +20,7 @@
   "dependencies": {
     "@babel/runtime": "^7.27.1",
     "@executeautomation/playwright-mcp-server": "^1.0.3",
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.1",
     "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.34.9",
     "@upstash/vector": "^1.2.1",

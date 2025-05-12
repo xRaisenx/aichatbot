@@ -1,8 +1,6 @@
 // @jest-environment node
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { fetchAdminShopifyProducts, AdminShopifyProductNode } from '@lib/shopify-admin';
-import { Index as VectorIndex } from '@upstash/vector';
-import { NextResponse } from 'next/server';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { AdminShopifyProductNode, fetchAdminShopifyProducts } from '@lib/shopify-admin';
 
 // Mock modules at the top level
 type ShopifyAdminResponse = { products: Partial<AdminShopifyProductNode>[]; pageInfo: { endCursor: string | null, hasNextPage?: boolean } }; // Added hasNextPage for completeness
@@ -63,10 +61,10 @@ describe.skip('Sync Products API', () => { // Skipping this test suite for now
     jest.clearAllMocks();
     // Set necessary environment variables
     process.env.CRON_SECRET = 'test-secret';
-    originalVectorURL = process.env.UPSTASH_VECTOR_URL; // Store original
-    originalVectorToken = process.env.UPSTASH_VECTOR_TOKEN; // Store original
-    process.env.UPSTASH_VECTOR_URL = 'mock-vector-url'; // Set mock value
-    process.env.UPSTASH_VECTOR_TOKEN = 'mock-vector-token'; // Set mock value
+    originalVectorURL = process.env.UPSTASH_VECTOR_REST_URL; // Store original
+    originalVectorToken = process.env.UPSTASH_VECTOR_REST_TOKEN; // Store original
+    process.env.UPSTASH_VECTOR_REST_URL = 'mock-vector-url'; // Set mock value
+    process.env.UPSTASH_VECTOR_REST_TOKEN = 'mock-vector-token'; // Set mock value
     // Set default mock implementations
     mockUpsertFn.mockImplementation(() => Promise.resolve(undefined)); // Changed from mockResolvedValue
     mockFetchFn.mockResolvedValue([]); // Default to finding no existing records
@@ -74,8 +72,8 @@ describe.skip('Sync Products API', () => { // Skipping this test suite for now
 
   afterEach(() => {
     // Restore environment variables
-    process.env.UPSTASH_VECTOR_URL = originalVectorURL;
-    process.env.UPSTASH_VECTOR_TOKEN = originalVectorToken;
+    process.env.UPSTASH_VECTOR_REST_URL = originalVectorURL;
+    process.env.UPSTASH_VECTOR_REST_TOKEN = originalVectorToken;
     // Reset modules if needed (especially if env vars affect module initialization)
     // jest.resetModules(); // Consider if needed, can slow down tests
   });
