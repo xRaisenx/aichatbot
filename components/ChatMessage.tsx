@@ -79,7 +79,7 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
         parsedProductCard = {
           title: productCardData.title || 'Untitled Product',
           description: productCardData.description || '',
-          price: Number(productCardData.price) || 0,
+          price: Number(productCardData.price) / 100 || 0,
           image: productCardData.image || null,
           landing_page: productCardData.landing_page || '#',
           matches: productCardData.matches || '',

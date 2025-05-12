@@ -188,7 +188,7 @@ export async function POST(request: Request) {
             return {
               title: p.title,
               description: finalDescription,
-              price: !isNaN(priceNumber) ? parseFloat(priceNumber.toFixed(2)) : 0,
+              price: !isNaN(priceNumber) ? parseFloat((priceNumber / 100).toFixed(2)) : 0,
               image: p.imageUrl,
               landing_page: p.productUrl,
               variantId: extractNumericIdFromGid(p.variantId || p.id || match.id),
