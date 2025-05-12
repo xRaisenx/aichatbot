@@ -44,7 +44,7 @@
     resize: both;
     transform-origin: bottom right;
     width: 60px;
-    height: 60px;
+    height: 90%;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -59,7 +59,7 @@
   @media (min-width: 1024px) {
     .container.open {
       width: 40vw;
-      height: 70vh;
+      height: 90%;
       max-width: 600px;
       min-height: 400px;
       min-width: 300px;

@@ -88,3 +88,11 @@ export interface ChatApiResponse {
   complementary_products?: ProductCardResponse[];
   history: ChatHistory; // Uses the unified ChatHistory type
 }
+
+/**
+ * Defines the request body for the /api/chat/generate-suggested-questions endpoint.
+ */
+export type GenerateSuggestedQuestionsRequest = {
+  type?: 'initial' | 'contextual'; // Defaults to 'initial' if not provided
+  conversation_history?: ChatMessage[]; // Required if type is 'contextual'
+};

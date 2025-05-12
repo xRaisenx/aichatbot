@@ -7,7 +7,8 @@ import { FaCommentDots, FaPaperPlane, FaPlus, FaTimes, FaTrashAlt } from 'react-
 import { v4 as uuidv4 } from 'uuid';
 import { addToCart } from '../lib/shopify';
 import styles from '../styles/ChatInterface.module.css';
-import { ChatMessage, Message } from './ChatMessage';
+import { ChatMessage, Message } from './ChatMessage'; // ChatMessage here is the component
+import type { ChatMessage as APIChatMessage } from '@/lib/types'; // Aliased import for the type
 
 // Static suggestedQuestions array is removed, questions will be fetched from API.
 
@@ -29,8 +30,11 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [cartId, setCartId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [userId, setUserId] = useState<string>(''); // Add userId state
   const [premadeQuestions, setPremadeQuestions] = useState<string[]>([]);
   const [isLoadingPremadeQuestions, setIsLoadingPremadeQuestions] = useState(true);
+  const [contextualSuggestions, setContextualSuggestions] = useState<string[]>([]);
+  const [isLoadingContextualSuggestions, setIsLoadingContextualSuggestions] = useState(false);
 
 
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -38,10 +42,19 @@ export function ChatInterface() {
   const chatWidgetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setUserId(uuidv4()); // Initialize userId on component mount
+
     const fetchSuggestedQuestions = async () => {
       setIsLoadingPremadeQuestions(true);
       try {
-        const response = await fetch('/api/chat/generate-suggested-questions');
+        // Updated to POST request as the API now expects POST
+        const response = await fetch('/api/chat/generate-suggested-questions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ type: 'initial' }), // Specify type for initial questions
+        });
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
         }
@@ -138,6 +151,8 @@ export function ChatInterface() {
     const trimmedText = messageText.trim();
     if (!trimmedText || isLoading) return;
 
+    setContextualSuggestions([]); // Clear previous contextual suggestions
+
     const userMessageId = uuidv4();
     const userMessage: Message = { id: userMessageId, role: 'user', text: trimmedText };
 
@@ -153,24 +168,26 @@ export function ChatInterface() {
     });
     setInput('');
     setIsLoading(true);
+    // No need to set isLoadingContextualSuggestions here as it's for after bot response
 
     try {
-      const historyToSend = messages
+      const historyForChatApi = messages
         .filter(m => !m.isLoading && !m.isError)
-        .slice(-6)
-        .map(({ id, role, text, advice, product_card, complementary_products }) => ({
-          id,
-          role,
-          text,
-          advice,
-          product_card,
-          complementary_products,
+        .slice(-6) // Use a slice of history for the main chat API
+        .map(m => ({ // Map to the ChatMessage structure expected by the backend
+          role: m.role,
+          content: m.text || m.advice || ''
         }));
+      
+      // Ensure the current user message is part of the history for contextual suggestions if not already included
+      // This variable seems unused after recent changes, let's remove it or use it.
+      // For now, let's ensure contextualHistory is correctly typed and formed.
+
 
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: trimmedText, history: historyToSend }),
+        body: JSON.stringify({ query: trimmedText, history: historyForChatApi, userId }), // Add userId to payload
       });
 
       if (!response.ok) {
@@ -178,19 +195,57 @@ export function ChatInterface() {
         throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
-      console.log('Received API response:', data);
+      const botResponseData = await response.json();
+      console.log('Received API response:', botResponseData);
+
+      const newBotMessage: Message = { ...botResponseData, id: uuidv4(), role: 'bot' };
 
       setMessages((prev) => [
         ...prev.filter(msg => msg.id !== loadingMessageId),
-        { ...data, id: uuidv4(), role: 'bot' },
+        newBotMessage,
       ]);
+
+      // After bot response, fetch contextual suggestions
+      setIsLoadingContextualSuggestions(true);
+      try {
+        // Construct history for contextual suggestions using APIChatMessage type
+        const contextualHistoryForAPI: APIChatMessage[] = [
+          { role: 'user', content: trimmedText },
+          { role: 'assistant', content: newBotMessage.advice || newBotMessage.text || '' } // Ensure content is string
+        ];
+
+        const suggestionsResponse = await fetch('/api/chat/generate-suggested-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'contextual',
+            conversation_history: contextualHistoryForAPI,
+          }),
+        });
+        if (suggestionsResponse.ok) {
+          const suggestionsData = await suggestionsResponse.json();
+          if (suggestionsData.questions && Array.isArray(suggestionsData.questions)) {
+            setContextualSuggestions(suggestionsData.questions.slice(0, 3));
+          } else {
+            setContextualSuggestions([]);
+          }
+        } else {
+          console.error('Failed to fetch contextual suggestions:', suggestionsResponse.statusText);
+          setContextualSuggestions([]);
+        }
+      } catch (suggestionsError) {
+        console.error('Error fetching contextual suggestions:', suggestionsError);
+        setContextualSuggestions([]);
+      } finally {
+        setIsLoadingContextualSuggestions(false);
+      }
+
     } catch (error) {
       console.error('Failed to send/process message:', error);
       setMessages((prev) => [
-        ...prev.filter(msg => msg.id !== loadingMessageId),
-        {
-          id: uuidv4(),
+        ...prev.filter(msg => msg.id !== loadingMessageId), // remove loading message
+        { // Add error message
+          id: uuidv4(), 
           role: 'bot',
           isError: true,
           text: `Sorry, something went wrong. Please try again. ${error instanceof Error ? `(${error.message.substring(0, 100)})` : ''}`,
@@ -201,7 +256,7 @@ export function ChatInterface() {
       inputRef.current?.focus();
       updateButtons();
     }
-  }, [isLoading, messages, updateButtons]);
+  }, [isLoading, messages, updateButtons]); // Removed setContextualSuggestions from dependency array as it's a setter
 
   const handleSendClick = () => {
     sendMessage(input);
@@ -214,7 +269,10 @@ export function ChatInterface() {
   };
 
   const handleExampleClick = (question: string) => {
+    setContextualSuggestions([]); // Clear contextual suggestions when an example is clicked
     setInput(question);
+    // sendMessage will be called by the input's onKeyPress or send button,
+    // or if we want immediate send:
     setTimeout(() => sendMessage(question), 0);
   };
 
@@ -292,6 +350,20 @@ export function ChatInterface() {
             {premadeQuestions.map((question, index) => (
               <button
                 key={index}
+                onClick={() => handleExampleClick(question)}
+                className={styles.chip}
+                aria-label={`Ask: ${question}`}
+              >
+                {question}
+              </button>
+            ))}
+          </div>
+        )}
+        {!isLoading && !isLoadingContextualSuggestions && contextualSuggestions.length > 0 && (
+          <div className={styles.examples}>
+            {contextualSuggestions.map((question, index) => (
+              <button
+                key={`contextual-${index}`}
                 onClick={() => handleExampleClick(question)}
                 className={styles.chip}
                 aria-label={`Ask: ${question}`}

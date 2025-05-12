@@ -7,8 +7,8 @@ This document outlines the current and anticipated structure of the Planet Beaut
 *   Frontend: Next.js (App Router), React, TypeScript, Tailwind CSS
 *   Backend: Next.js API Routes (Serverless Functions on Vercel)
 *   AI: Google Gemini API (for natural language understanding, intent recognition, embeddings, and text generation)
-*   Vector Database: Upstash Vector (for product embeddings and semantic search)
-*   Caching & Session Management: Upstash Redis (for chat history, session data, and rate limiting)
+*   Vector Database: Upstash Vector (for product embeddings and semantic search via `idx:products_vss`)
+*   Caching, Session Management & Knowledge Base: Upstash Redis (for API response caching, chat session history, dynamic knowledge base for common Q&A, and rate limiting)
 *   Relational Data: SQLite via Prisma (Groundwork laid, optional, for persistent user data and admin information)
 *   E-commerce Integration: Shopify Admin API & Storefront API
 
@@ -34,9 +34,10 @@ The core of the Next.js 13+ application, leveraging the App Router. It includes 
     *   `(Other admin-specific pages)`: e.g., `/admin/users/page.tsx`, `/admin/products/page.tsx`.
 *   `/api`: Houses all backend API route handlers.
     *   `/chat`
-        *   `route.ts`: Core endpoint handling chat messages, integrating Gemini AI, Upstash Vector, and Redis for responses.
+        *   `route.ts`: Core endpoint handling chat messages. Integrates Gemini AI (via `lib/llm.ts`), Upstash Vector (for product search), and Upstash Redis (for API response caching, session history, and knowledge base updates).
+        *   `generate-suggested-questions/route.ts`: API endpoint (POST) for generating AI-suggested questions. Handles requests for 4 general welcome questions (for initial chat load, `type: 'initial'`) and 3 contextually relevant suggested questions based on conversation history (`type: 'contextual'`).
     *   `/sync-products`
-        *   `route.ts`: Endpoint for syncing Shopify products to Upstash Vector, potentially triggered manually or via cron.
+        *   `route.ts`: Endpoint for syncing Shopify products to Upstash Vector. Also triggers invalidation of relevant Redis caches. Potentially triggered manually or via cron.
     *   `/admin/[...slug]`
         *   `route.ts`: API routes for admin tasks (e.g., user management, analytics).
     *   `/analytics`
@@ -52,7 +53,7 @@ Contains reusable React UI components used throughout the application.
 
 **Files:**
 
-*   `ChatInterface.tsx`: Primary chat UI component, managing input and displaying conversation history via ChatMessage.
+*   `ChatInterface.tsx`: Primary chat UI component. Manages user input, displays conversation history via `ChatMessage`. Fetches and displays 4 AI-generated suggested questions on initial load, and also fetches and displays 3 new, contextually relevant AI-generated suggested questions after each chatbot response.
 *   `ChatMessage.tsx`: Renders individual chat messages (user or bot) with styling.
 *   `ComplementaryProducts.tsx`: Displays suggested complementary products.
 *   `KnowledgeBaseDisplay.tsx`: Shows structured non-product knowledge base info (if implemented).
@@ -67,9 +68,9 @@ Holds utility functions, helper modules, SDK initializations, and business logic
 
 **Files:**
 
-*   `gemini.ts`: Interacts with the Google Gemini API for prompts, embeddings, and responses.
-*   `redis.ts`: Manages Upstash Redis connections for caching and session data.
-*   `vectorDb.ts` (or `upstashVector.ts`): Handles Upstash Vector operations for product embeddings and search.
+*   `gemini.ts` (or `llm.ts` as per current project): Interacts with the Google Gemini API. Checks Redis knowledge base (via `getKnowledgebaseEntry` from `redis.ts`) before making an API call. Handles JSON parsing and fallback logic.
+*   `redis.ts`: Manages Upstash Redis connections and provides functions for API response caching, session history management, dynamic knowledge base (with keyword similarity search), cache invalidation, and storing/retrieving the base system prompt. Exports `redisClient` for direct use in other modules if needed.
+*   `vectorDb.ts` (or `upstashVector.ts`): Handles Upstash Vector operations for product embeddings and search (Note: `vectorIndex` is currently initialized directly in `app/api/chat/route.ts` and `lib/redis.ts`).
 *   `shopify.ts`: Interfaces with the Shopify Storefront API for product data and potential cart features.
 *   `shopify-admin.ts`: Connects to the Shopify Admin API for sync and admin tasks.
 *   `(Optional) prisma.ts`: Initializes Prisma client for SQLite (if used).
