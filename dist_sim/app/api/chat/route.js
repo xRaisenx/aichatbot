@@ -1,3 +1,5 @@
+// app/api/chat/route.js
+
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Ratelimit } from "@upstash/ratelimit";
 // generateEmbeddings is no longer needed for sparse-only query

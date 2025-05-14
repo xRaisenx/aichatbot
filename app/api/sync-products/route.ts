@@ -1,3 +1,5 @@
+// app/apui/sync-products/route.ts
+
 import { AdminFetchResult, fetchAdminShopifyProducts } from '@lib/shopify-admin';
 import { Index as VectorIndex } from '@upstash/vector';
 import { NextResponse } from 'next/server';
@@ -13,6 +15,14 @@ type VectorMetadata = {
   imageUrl: string;
   productUrl: string;
   variantId: string;
+  intent: string;
+  is_product_query: boolean;
+  search_keywords: string;
+  product_types: string;
+  attributes: string;
+  ai_understanding: string;
+  advice: string;
+  usage_instructions: string;
 };
 
 type SparseVectorRecord = {
@@ -21,14 +31,20 @@ type SparseVectorRecord = {
   metadata: VectorMetadata;
 };
 
-const vectorIndex: VectorIndex<VectorMetadata> | null = process.env.UPSTASH_VECTOR_REST_URL && process.env.UPSTASH_VECTOR_REST_TOKEN
-  ? new VectorIndex<VectorMetadata>({
-      url: (process.env.UPSTASH_VECTOR_REST_URL || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
-      token: (process.env.UPSTASH_VECTOR_REST_TOKEN || '').replace(/^"|"$/g, '').replace(/;$/g, ''),
-    })
-  : null;
+if (!process.env.UPSTASH_VECTOR_REST_URL || !process.env.UPSTASH_VECTOR_REST_TOKEN) {
+  throw new Error('Missing UPSTASH_VECTOR_REST_URL or UPSTASH_VECTOR_REST_TOKEN environment variables');
+}
 
-const BATCH_SIZE_VECTOR = 25;
+if (!process.env.CRON_SECRET) {
+  throw new Error('Missing CRON_SECRET environment variable');
+}
+
+const vectorIndex: VectorIndex<VectorMetadata> = new VectorIndex<VectorMetadata>({
+  url: process.env.UPSTASH_VECTOR_REST_URL,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN,
+});
+
+const BATCH_SIZE_VECTOR = 10;
 const MAX_RETRIES = 3;
 
 function areObjectsEqual(obj1: Record<string, unknown>, obj2: Record<string, unknown>): boolean {
@@ -183,44 +199,42 @@ export async function GET(request: Request) {
       for (const product of products) {
         try {
           const productType = product.productType ? product.productType.split('>').pop()?.trim() : '';
-          const tags = product.tags ? product.tags.map(tag => tag.trim()) : []; // Keep tags as an array
-          const textForBM25 = `${product.title} ${product.descriptionHtml || ''} ${tags.join(' ') || ''} ${product.vendor || ''} ${productType || ''}`.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); // Join tags for textForBM25
-
-          // Treat price from Shopify API as an integer representing cents (or smallest unit)
+          const tags = product.tags ? product.tags.map(tag => tag.trim()) : [];
+          const textForBM25 = `${product.title} ${product.descriptionHtml || ''} ${tags.join(' ') || ''} ${product.vendor || ''} ${productType || ''}`.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
           const priceFromShopify = parseInt(product.priceRange.minVariantPrice.amount, 10);
-
-          // Apply exchange rate if necessary, keeping it as cents
           const priceToStore: number = storeCurrency === 'USD' ? priceFromShopify : Math.round(priceFromShopify * exchangeRate);
-
 
           const sparseVectorData: SparseVectorRecord = {
             id: product.id,
             data: textForBM25,
             metadata: {
-              textForBM25: textForBM25,
+              textForBM25,
               title: product.title,
               handle: product.handle,
               vendor: product.vendor || '',
               productType: productType || '',
-              tags: tags, // Store tags as an array
-              price: priceToStore, // Store the price in cents
+              tags,
+              price: priceToStore,
               imageUrl: product.images?.edges[0]?.node.url || '',
               productUrl: product.onlineStoreUrl || `/products/${product.handle}`,
               variantId: product.variants?.edges[0]?.node.id || product.id,
+              intent: 'product_search',
+              is_product_query: true,
+              search_keywords: JSON.stringify(tags.concat(product.title.split(' '))),
+              product_types: JSON.stringify([productType || 'unknown']),
+              attributes: JSON.stringify(tags),
+              ai_understanding: `Shopify product: ${product.title}`,
+              advice: `Explore ${product.title} for your needs.`,
+              usage_instructions: 'Follow product instructions.',
             },
           };
 
           vectorUpsertBatch.push(sparseVectorData);
 
           if (vectorUpsertBatch.length >= BATCH_SIZE_VECTOR) {
-            if (vectorIndex) {
-              await upsertWithRetry(vectorIndex, vectorUpsertBatch);
-              vectorUpsertBatch.length = 0;
-              await new Promise(resolve => setTimeout(resolve, 500));
-            } else {
-              console.warn('Vector client not initialized. Skipping upsert batch.');
-              errors += vectorUpsertBatch.length;
-            }
+            await upsertWithRetry(vectorIndex, vectorUpsertBatch);
+            vectorUpsertBatch.length = 0;
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
           processed++;
         } catch (err) {
@@ -232,7 +246,7 @@ export async function GET(request: Request) {
       console.log(`Fetched ${fetched} products so far...`);
     } while (cursor);
 
-    if (vectorUpsertBatch.length > 0 && vectorIndex) {
+    if (vectorUpsertBatch.length > 0) {
       await upsertWithRetry(vectorIndex, vectorUpsertBatch);
     }
 

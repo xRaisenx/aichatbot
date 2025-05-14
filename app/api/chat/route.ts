@@ -1,5 +1,4 @@
-// app/api/chat/route.ts
-import { QueryResult, Index as VectorIndex } from '@upstash/vector';
+import { Index } from '@upstash/vector';
 import { NextResponse } from 'next/server';
 import pino from 'pino';
 import { generateLLMResponse } from '../../../lib/llm';
@@ -8,24 +7,25 @@ import {
   cacheSessionHistory,
   getCachedResponse,
   getSessionHistory,
-  STATIC_BASE_PROMPT_CONTENT,
-  updateKnowledgebase
+  updateKnowledgebase,
 } from '../../../lib/redis';
 import {
   ChatApiResponse,
   ChatHistory,
-  LLMStructuredResponse,
   ProductCardResponse,
-  ProductVectorMetadata
+  ProductVectorMetadata,
 } from '../../../lib/types';
 
-const vectorIndex = new VectorIndex<ProductVectorMetadata>({
-  url: process.env.UPSTASH_VECTOR_REST_URL || '',
-  token: process.env.UPSTASH_VECTOR_REST_TOKEN || '',
+if (!process.env.UPSTASH_VECTOR_REST_URL || !process.env.UPSTASH_VECTOR_REST_TOKEN) {
+  throw new Error('Missing UPSTASH_VECTOR_REST_URL or UPSTASH_VECTOR_REST_TOKEN environment variables');
+}
+
+const vectorIndex = new Index<ProductVectorMetadata>({
+  url: process.env.UPSTASH_VECTOR_REST_URL,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN,
 });
 
 const logger = pino({ level: 'info' });
-
 const MAX_DESCRIPTION_LENGTH = 200;
 
 function extractNumericIdFromGid(gid: string | number | undefined): string {
@@ -35,208 +35,203 @@ function extractNumericIdFromGid(gid: string | number | undefined): string {
   return parts.pop() || gid;
 }
 
+// Helper function to format chatbox response
+function formatChatboxResponse(advice: string, products: ProductCardResponse[], followUps: string[]): string {
+  let response = '';
+
+  // Add advice, preserving existing markdown and handling paragraphs
+  // Replace single newlines with double newlines to create paragraphs
+  response += advice.replace(/\n/g, '\n\n');
+
+  // Add product cards if available, formatted as a bulleted list without emojis
+  if (products.length > 0) {
+    response += `\n\n**Recommended Products**:\n`;
+    products.forEach(p => {
+      response += `- **${p.title}**: ${p.description} ($${p.price})\n`;
+    });
+  } else if (products.length === 0 && advice.length > 0) {
+    // Graceful handling if no products found but advice is available
+    response += `\n\n*No specific products found for this query, but here's some general advice!*`;
+  }
+
+  // Add a pro tip section
+  response += `\n\n💡 **Pro Tip**: Your skin is unique, so feel free to mix and match products from different brands to find *your* perfect routine. Test small amounts first to see what your skin loves!`;
+
+  // Add suggested follow-ups as a bulleted list without emojis
+  const finalFollowUps = followUps.length > 0 ? followUps : [
+    "Ask for specific product recommendations!",
+    "Looking for top brands for combination skin? Ask me for faves!",
+    "Need products from Planet Beauty? Just let me know!"
+  ];
+  response += `\n\n **Want to dive deeper?** Try these next steps:\n${finalFollowUps.map(f => `- ${f}`).join('\n')}`;
+
+  return response;
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json() as { query?: string; userId?: string; chatHistory?: ChatHistory };
     const { query: rawQuery, userId, chatHistory: clientChatHistory = [] } = body;
 
     if (!userId) {
       logger.error('Missing userId in request body');
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
     }
+
     if (!rawQuery || typeof rawQuery !== 'string') {
-      logger.error('Invalid or missing query in request body');
-      return NextResponse.json({ error: 'Invalid or missing query' }, { status: 400 });
+      logger.error('Invalid or missing query');
+      return NextResponse.json({ error: 'Invalid query' }, { status: 400 });
     }
 
     const trimmedQuery = rawQuery.trim();
     if (trimmedQuery.length === 0) {
-      logger.error('Query is empty');
+      logger.error('Empty query');
       return NextResponse.json({ error: 'Query is empty' }, { status: 400 });
     }
 
-    const cachedResponseData = await getCachedResponse(userId, trimmedQuery);
-    if (cachedResponseData) {
-      logger.info({ userId, query: trimmedQuery }, 'Returning cached response.');
-      const updatedHistoryForCache: ChatHistory = (await getSessionHistory(userId)) || [...clientChatHistory];
-
-      const lastMessage = updatedHistoryForCache[updatedHistoryForCache.length - 1];
-      if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== trimmedQuery) {
-        updatedHistoryForCache.push({ role: 'user', content: trimmedQuery });
-      }
-      const cachedApiResponse = cachedResponseData.response as ChatApiResponse;
-      updatedHistoryForCache.push({ role: 'assistant', content: cachedApiResponse.advice });
-
-      await cacheSessionHistory(userId, updatedHistoryForCache);
-      return NextResponse.json({ ...cachedApiResponse, history: updatedHistoryForCache });
+    const cachedRes = await getCachedResponse(userId, trimmedQuery);
+    if (cachedRes) {
+      logger.info(`Cache hit for user ${userId} with query "${trimmedQuery}"`);
+      const updatedHistory: ChatHistory = [...clientChatHistory, { role: 'user', content: trimmedQuery }];
+      await cacheSessionHistory(userId, updatedHistory);
+      // Return cached response directly, assuming it's already formatted
+      return NextResponse.json({ ...cachedRes.response, history: updatedHistory });
     }
+    logger.info(`Cache miss for user ${userId} with query "${trimmedQuery}"`);
 
     const fullChatHistory: ChatHistory = (await getSessionHistory(userId)) || [...clientChatHistory];
-    const lastHistoryMessage = fullChatHistory[fullChatHistory.length - 1];
-    if (!lastHistoryMessage || lastHistoryMessage.role !== 'user' || lastHistoryMessage.content !== trimmedQuery) {
+
+    if (!fullChatHistory.find(msg => msg.content === trimmedQuery)) {
       fullChatHistory.push({ role: 'user', content: trimmedQuery });
     }
 
-    logger.info({ userId, query: trimmedQuery, chatHistoryLength: fullChatHistory.length }, 'Processing chat query.');
+    const llmResult = await generateLLMResponse('', fullChatHistory, trimmedQuery);
 
-    const historyForLLM = fullChatHistory.slice(-10);
-
-    const llmResult: LLMStructuredResponse = await generateLLMResponse(STATIC_BASE_PROMPT_CONTENT, historyForLLM, trimmedQuery);
-
-    let finalProductCards: ProductCardResponse[] = [];
-    let enhancedAdvice = llmResult.advice;
-    let searchNote = '';
-
-    // Skip product search for non-product queries, fictional queries, or clarification queries
-    if (llmResult.is_product_query && !llmResult.is_fictional_product_query && !llmResult.is_clarification_needed) {
-      logger.info({ search_keywords: llmResult.search_keywords, product_types: llmResult.product_types }, 'LLM determined it is a product query. Performing product search...');
-
-      let searchKeywordsString = '';
-      if (Array.isArray(llmResult.search_keywords) && llmResult.search_keywords.length > 0) {
-        searchKeywordsString = llmResult.search_keywords.join(' ');
-      } else {
-        const constructedKeywords: string[] = [];
-        if (Array.isArray(llmResult.product_types)) constructedKeywords.push(...llmResult.product_types);
-        if (Array.isArray(llmResult.attributes)) constructedKeywords.push(...llmResult.attributes);
-        searchKeywordsString = constructedKeywords.join(' ');
-        logger.warn({ constructedKeywords, originalLlmKeywords: llmResult.search_keywords }, 'Constructed search keywords from product_types and attributes.');
-      }
-
-      if (vectorIndex && searchKeywordsString.trim() !== '') {
-        logger.info({ searchKeywordsString, requested_product_count: llmResult.requested_product_count }, 'Performing vector query with keywords.');
-
-        let productQueryResults: QueryResult<ProductVectorMetadata>[] = [];
-
-        if (llmResult.is_combo_set_query && Array.isArray(llmResult.product_types) && llmResult.product_types.length > 0) {
-          // Handle set/combo queries by searching for individual product types
-          logger.info({ product_types: llmResult.product_types }, 'Handling combo/set query by searching for individual product types.');
-          const resultsPromises = llmResult.product_types.map(type =>
-            vectorIndex!.query({
-              data: type, // Search for each product type
-              topK: Math.ceil((llmResult.requested_product_count || 3) / llmResult.product_types.length), // Distribute requested count among types
-              includeMetadata: true,
-            }) as Promise<QueryResult<ProductVectorMetadata>[]>
-          );
-          const resultsArrays = await Promise.all(resultsPromises);
-          productQueryResults = resultsArrays.flat(); // Combine results from all searches
-
-          // Remove duplicates based on product ID
-          const productIds = new Set<string>();
-          productQueryResults = productQueryResults.filter(match => {
-              if (match.metadata?.id && !productIds.has(match.metadata.id)) {
-                  productIds.add(match.metadata.id);
-                  return true;
-              }
-              return false;
-          });
-
-
-           if (llmResult.requested_product_count && productQueryResults.length > llmResult.requested_product_count) {
-              productQueryResults = productQueryResults.slice(0, llmResult.requested_product_count); // Trim to requested count
-           }
-
-
-        } else {
-          // Handle regular product queries
-          const topK = llmResult.requested_product_count || 1; // Respect requested_product_count
-           productQueryResults = await vectorIndex.query({
-            data: searchKeywordsString,
-            topK: topK,
-            includeMetadata: true,
-          }) as QueryResult<ProductVectorMetadata>[];
-        }
-
-
-        let filteredResults = productQueryResults.filter(match => match.metadata);
-
-        if (llmResult.price_filter && llmResult.price_filter.max_price) {
-          const maxPriceUSD = llmResult.price_filter.max_price;
-          filteredResults = filteredResults.filter(match => {
-            const priceInUSD = Number(match.metadata!.price);
-            return !isNaN(priceInUSD) && priceInUSD <= maxPriceUSD;
-          });
-        }
-
-        if (llmResult.attributes && llmResult.attributes.length > 0) {
-          filteredResults = filteredResults.filter(match => {
-            const searchableText = `${match.metadata!.title.toLowerCase()} ${match.metadata!.textForBM25?.toLowerCase() || ''} ${match.metadata!.tags?.join(' ').toLowerCase() || ''}`;
-            return llmResult.attributes!.every(attr => searchableText.includes(attr.toLowerCase()));
-          });
-        }
-
-        if (llmResult.sort_by_price) {
-          filteredResults.sort((a, b) => Number(a.metadata!.price) - Number(b.metadata!.price));
-        }
-
-        if (filteredResults.length > 0) {
-          finalProductCards = filteredResults.map(match => {
-            const p = match.metadata!;
-            const priceNumber = Number(p.price);
-             // Use a more informative description for complementary products in a set/combo
-             const reasonForMatch = llmResult.is_combo_set_query && p.productType ? `Part of a "${llmResult.ai_understanding}" set - ${p.productType}.` : 'Relevant product based on your query.';
-
-            let finalDescription = reasonForMatch;
-            if (p.textForBM25 && !llmResult.is_combo_set_query) { // Include product description for non-combo queries
-                 finalDescription = p.textForBM25.substring(0, MAX_DESCRIPTION_LENGTH) + (p.textForBM25.length > MAX_DESCRIPTION_LENGTH ? '...' : '');
-             } else if (llmResult.is_combo_set_query && p.productType) {
-                // Keep the set/combo specific description
-             } else {
-                 finalDescription = 'Relevant product based on your query.'; // Fallback description
-             }
-
-
-            return {
-              title: p.title,
-              description: finalDescription,
-              price: !isNaN(priceNumber) ? parseFloat((priceNumber / 100).toFixed(2)) : 0,
-              image: p.imageUrl,
-              landing_page: p.productUrl,
-              variantId: extractNumericIdFromGid(p.variantId || p.id || match.id),
-            };
-          });
-          logger.info({ count: finalProductCards.length, requested: llmResult.requested_product_count }, 'Products found and mapped after filtering.');
-        } else {
-          searchNote = `\n(No products found matching "${searchKeywordsString}". Try broadening your search!)`;
-        }
-      } else {
-        searchNote = `\n(Product search unavailable as no effective keywords could be determined.)`;
-      }
-      enhancedAdvice += searchNote;
-    } else {
-      logger.info({ is_product_query: llmResult.is_product_query, is_fictional: llmResult.is_fictional_product_query, is_clarification_needed: llmResult.is_clarification_needed }, 'Skipping product search for non-product, fictional, or clarification query.');
+    // Handle empty advice from LLM
+    if (!llmResult || !llmResult.advice || llmResult.advice.trim().length === 0) {
+        logger.warn(`LLM returned empty or invalid advice for user ${userId} with query "${trimmedQuery}"`);
+        llmResult.advice = "I'm not sure what you're looking for—could you clarify?";
+        llmResult.suggested_follow_ups = ["Can you rephrase your question?", "Tell me more about what you need."];
     }
 
+    let finalProducts: ProductCardResponse[] = [];
+    const formattedAdvice = formatChatboxResponse(llmResult.advice, finalProducts, llmResult.suggested_follow_ups || []);
+    const productType = llmResult.product_types?.[0];
 
-    fullChatHistory.push({ role: 'assistant', content: enhancedAdvice });
+    // Fetch products even if it's not strictly a product query
+    if (!llmResult.is_fictional_product_query && !llmResult.is_clarification_needed) {
+      // Validate and safely access llmResult fields for searchKeywordsString
+      let searchKeywordsString = Array.isArray(llmResult.search_keywords) ? llmResult.search_keywords.join(' ') : '';
+
+      if (!searchKeywordsString && Array.isArray(llmResult.product_types) && llmResult.product_types.length) {
+        searchKeywordsString = [...llmResult.product_types, ...(Array.isArray(llmResult.attributes) ? llmResult.attributes : [])].join(' ');
+      }
+
+      if (searchKeywordsString.trim()) {
+        logger.info(`Performing vector search for keywords: "${searchKeywordsString}"`);
+        const results = await vectorIndex.query({
+          data: searchKeywordsString,
+          topK: llmResult.requested_product_count || 1,
+          includeMetadata: true,
+        }) as { id: string; metadata?: ProductVectorMetadata }[];
+
+        const filteredResults = results.filter(match => match.metadata && match.metadata.price != null && match.metadata.title && match.metadata.productUrl);
+
+        if (filteredResults.length > 0) {
+          logger.info(`Found ${filteredResults.length} product matches for keywords: "${searchKeywordsString}"`);
+          const uniqueProductTitles = new Set<string>();
+          finalProducts = filteredResults.filter(match => {
+            if (uniqueProductTitles.has(match.metadata!.title!)) {
+              return false; // Skip duplicate product
+            }
+            uniqueProductTitles.add(match.metadata!.title!);
+            return true; // Include unique product
+          }).map(match => ({
+            title: match.metadata!.title!,
+            description: match.metadata!.textForBM25
+              ? match.metadata!.textForBM25.substring(0, MAX_DESCRIPTION_LENGTH) +
+                (match.metadata!.textForBM25.length > MAX_DESCRIPTION_LENGTH ? '...' : '')
+              : 'Relevant beauty product based on your query.',
+            price: match.metadata!.price ? Number(match.metadata!.price) / 100 : 0,
+            image: match.metadata!.imageUrl || '/default-product.jpg',
+            landing_page: match.metadata!.productUrl,
+            variantId: extractNumericIdFromGid(match.metadata?.variantId || match.id),
+          }));
+        } else {
+          logger.info(`No product matches found for keywords: "${searchKeywordsString}"`);
+        }
+      } else {
+        logger.info('No valid search keywords generated by LLM for vector search.');
+      }
+    }
 
     const responseBody: ChatApiResponse = {
-      advice: enhancedAdvice,
-      product_card: llmResult.is_combo_set_query || llmResult.requested_product_count > 1 ? null : (finalProductCards.length > 0 ? finalProductCards[0] : null),
-      complementary_products: llmResult.is_combo_set_query || llmResult.requested_product_count > 1 ? finalProductCards.slice(0, llmResult.requested_product_count || 10) : null,
+      advice: formattedAdvice,
+      product_card: finalProducts.length === 1 ? finalProducts[0] : null,
+      complementary_products: finalProducts.length > 1 ? finalProducts.slice(1) : [],
+      history: fullChatHistory,
       is_product_query: llmResult.is_product_query,
       ai_understanding: llmResult.ai_understanding,
       is_fictional_product_query: llmResult.is_fictional_product_query,
       is_clarification_needed: llmResult.is_clarification_needed,
-      history: fullChatHistory,
+      search_keywords: llmResult.search_keywords,
+      product_types: llmResult.product_types,
+      attributes: llmResult.attributes,
+      vendor: llmResult.vendor,
+      price_filter: llmResult.price_filter,
+      requested_product_count: llmResult.requested_product_count,
+      sort_by_price: llmResult.sort_by_price,
+      usage_instructions: llmResult.usage_instructions,
+      is_combo_set_query: llmResult.is_combo_set_query,
+      is_ingredient_query: llmResult.is_ingredient_query,
+      skin_concern: llmResult.skin_concern,
+      is_price_range_query: llmResult.is_price_range_query,
+      response_confidence: llmResult.response_confidence,
+      suggested_follow_ups: llmResult.suggested_follow_ups,
+      is_out_of_stock_query: llmResult.is_out_of_stock_query,
+      query_language: llmResult.query_language,
+      is_comparison_query: llmResult.is_comparison_query,
+      cache_ttl_override: llmResult.cache_ttl_override || 3600,
+      is_location_specific: llmResult.is_location_specific,
+      user_intent_priority: llmResult.user_intent_priority,
+      alternative_product_types: llmResult.alternative_product_types,
+      is_feedback_request: llmResult.is_feedback_request,
+      contextual_clarification: llmResult.contextual_clarification,
+      is_subscription_query: llmResult.is_subscription_query,
+      is_personalized_query: llmResult.is_personalized_query,
+      product_application_time: llmResult.product_application_time,
+      is_promotion_query: llmResult.is_promotion_query,
+      user_sentiment: llmResult.user_sentiment,
+      is_gift_query: llmResult.is_gift_query,
+      product_packaging: llmResult.product_packaging,
+      is_educational_query: llmResult.is_educational_query,
+      related_categories: llmResult.related_categories,
+      is_urgency_indicated: llmResult.is_urgency_indicated,
+      query_complexity: llmResult.query_complexity,
     };
+
+    // Update the last assistant message in history with the formatted advice
+    if (fullChatHistory.length > 0 && fullChatHistory[fullChatHistory.length - 1].role === 'assistant') {
+      fullChatHistory[fullChatHistory.length - 1].content = formattedAdvice;
+    } else {
+      fullChatHistory.push({ role: 'bot', content: formattedAdvice });
+    }
 
     await cacheResponse(userId, trimmedQuery, responseBody);
     await cacheSessionHistory(userId, fullChatHistory);
 
-    if (!llmResult.is_product_query && enhancedAdvice) {
-      await updateKnowledgebase(
-        trimmedQuery,
-        enhancedAdvice,
-        llmResult.product_types,
-        llmResult.attributes
-      );
-    }
+    // Update knowledge base with original advice, not the formatted one
+    await updateKnowledgebase(
+      trimmedQuery,
+      llmResult.advice,
+      llmResult.product_types,
+      llmResult.attributes
+    );
 
-    logger.info({ userId, query: trimmedQuery, product_card: !!responseBody.product_card, complementary_products_count: responseBody.complementary_products?.length || 0 }, 'Chat response generated.');
-    return NextResponse.json(responseBody);
+    logger.info(`Successfully processed and formatted response for user ${userId}`);
+    return NextResponse.json({ ...responseBody, history: fullChatHistory });
   } catch (error) {
-    logger.error({ error }, 'Error processing chat request.');
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: `Internal server error: ${errorMessage}` }, { status: 500 });
+    logger.error(`Internal server error: ${error}`);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

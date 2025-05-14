@@ -1,6 +1,3 @@
-
-// components/ChatMessage.tsx
-
 import DOMPurify from 'isomorphic-dompurify';
 import { useEffect } from 'react';
 import { ProductCardResponse } from '../lib/types';
@@ -15,6 +12,7 @@ export interface Message {
   role: 'user' | 'bot';
   text?: string;
   ai_understanding?: string;
+  product_type?: string;
   product_card?: {
     title: string;
     description: string;
@@ -43,36 +41,79 @@ interface ChatMessageProps {
   onAddToCart: (productId: string, productTitle: string) => void;
 }
 
+// Helper function to format markdown-like text to HTML
+function formatMessageContent(content: string): string {
+  let formatted = content
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+    .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic
+    .replace(/^- (.*)$/gm, '<li>$1</li>') // Bullets
+    .replace(/\n\n/g, '</p><p>') // Paragraphs
+    .replace(/\n/g, '<br>'); // Single newlines
+  formatted = `<p>${formatted}</p>`;
+  // Wrap bullets in ul
+  formatted = formatted.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
+  return formatted;
+}
+
 export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
+  // Enhanced logging for debugging
   useEffect(() => {
     if (message.ai_understanding) {
-      console.log('AI Understanding:', message.ai_understanding);
+      console.log(`AI Understanding for message ${message.id}:`, message.ai_understanding);
     }
-  }, [message.ai_understanding]);
-
-  useEffect(() => {
-    if (message.isLoading) {
-      console.log('Rendering typing indicator for message:', message.id);
-    }
-  }, [message.isLoading, message.id]);
-
-  useEffect(() => {
     if (message.product_card) {
-      console.log('Rendering product card:', message.product_card);
+      console.log(`Product card for message ${message.id}:`, message.product_card.title);
     }
     if (message.complementary_products) {
-      console.log('Rendering complementary products:', message.complementary_products);
+      console.log(`Complementary products for message ${message.id}:`, message.complementary_products.map(p => p.title));
     }
-  }, [message.product_card, message.complementary_products]);
+    if (message.advice) {
+      console.log(`Advice length for message ${message.id}: ${message.advice.length} characters`);
+    }
+  }, [message]);
 
-  const parseAdvice = (advice: string) => {
-    const productCardRegex = /PRODUCT_CARD_START(\{.*?\})PRODUCT_CARD_END/;
-    const match = advice.match(productCardRegex);
+  // Validate product relevance (e.g., exclude haircare for skincare queries)
+  const isProductRelevant = (product: ProductCardResponse): boolean => {
+    const isHaircareProduct = product.title.toLowerCase().includes('conditioner') || product.title.toLowerCase().includes('shampoo');
+    const queryProductType = message.product_type?.toLowerCase();
+    const productTitleLower = product.title.toLowerCase();
+
+    // Assuming we only want to exclude haircare products for now
+    if (isHaircareProduct) {
+      console.warn(`Irrelevant product detected: ${product.title}`);
+      return false;
+    }
+
+    if (queryProductType && !productTitleLower.includes(queryProductType)) {
+      console.warn(`Irrelevant product detected: ${product.title} (not a ${queryProductType})`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const getReasonForMatch = (product: ProductCardResponse): string => {
+    let reason = "This product matches your query.";
+    const queryProductType = message.product_type?.toLowerCase();
+    const productTitleLower = product.title.toLowerCase();
+
+    if (queryProductType && productTitleLower.includes(queryProductType)) {
+      reason = `This is a ${queryProductType}.`;
+    }
+
+    return reason;
+  }
+
+  // Parse and format advice
+  const parseAdvice = (advice: string, query: string = '') => {
     let cleanedAdvice = advice;
     let parsedProductCard = message.product_card;
 
+    // Handle product card regex (if embedded in advice)
+    const productCardRegex = /PRODUCT_CARD_START(\{.*?\})PRODUCT_CARD_END/;
+    const match = advice.match(productCardRegex);
     if (match && match[1]) {
       try {
         const productCardData = JSON.parse(match[1]);
@@ -93,15 +134,21 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
       }
     }
 
-    return { cleanedAdvice, parsedProductCard };
+    // Format advice for chatbox display
+    const formattedAdvice = formatMessageContent(cleanedAdvice || 'No advice provided.');
+
+    return { cleanedAdvice: formattedAdvice, parsedProductCard };
   };
 
+  // Sanitization options for safe HTML rendering
   const sanitizeOptions = {
     USE_PROFILES: { html: true },
-    ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li'],
+    ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li', 'span'],
+    ALLOWED_ATTR: ['style'], // Allow style for potential emoji rendering
   };
+
   const { cleanedAdvice, parsedProductCard } = message.advice
-    ? parseAdvice(message.advice)
+    ? parseAdvice(message.advice, message.text || '')
     : { cleanedAdvice: '', parsedProductCard: message.product_card };
   const sanitizedAdvice = cleanedAdvice ? DOMPurify.sanitize(cleanedAdvice, sanitizeOptions) : '';
   const sanitizedText = message.text ? DOMPurify.sanitize(message.text, sanitizeOptions) : '';
@@ -121,67 +168,96 @@ export function ChatMessage({ message, onAddToCart }: ChatMessageProps) {
   if (message.isError) {
     return (
       <div className={`${styles['message-base']} ${styles['bot-message']} ${styles.messageBubble} bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300`}>
-        <p className="font-medium">Oops!</p>
+        <p className="font-medium">Oops! Something went wrong.</p>
         {sanitizedText && <div dangerouslySetInnerHTML={{ __html: sanitizedText }} />}
       </div>
     );
   }
 
+  // Filter unique and relevant products
+  const uniqueProducts = new Set<string>();
+  const filteredProductCard = parsedProductCard && isProductRelevant(parsedProductCard)
+    ? parsedProductCard
+    : null;
+  const filteredComplementaryProducts = message.complementary_products
+    ?.filter(p => isProductRelevant(p) && !uniqueProducts.has(p.variantId) && p.variantId !== parsedProductCard?.variantId)
+    .map(p => {
+      uniqueProducts.add(p.variantId);
+      return p;
+    }) || [];
+
+  if (filteredProductCard) {
+    uniqueProducts.add(filteredProductCard.variantId);
+  }
+
   return (
     <div className={`${styles['message-base']} ${isUser ? styles['user-message'] : styles['bot-message']} ${styles.messageBubble}`}>
-      {!isUser && message.ai_understanding && null}
-
-      {isUser && message.text && <div>{message.text}</div>}
-
-      {!isUser && parsedProductCard && (
-        <div className="mt-3 mb-1">
-          <ProductCard
-            title={parsedProductCard.title}
-            description={parsedProductCard.description}
-            price={parsedProductCard.price}
-            image={parsedProductCard.image || '/pb_logo.svg'}
-            landing_page={parsedProductCard.landing_page}
-            matches={parsedProductCard.matches}
-            productId={parsedProductCard.variantId}
-            availableForSale={parsedProductCard.availableForSale}
-            quantityAvailable={parsedProductCard.quantityAvailable}
-            onAddToCart={(productId) => onAddToCart(productId, parsedProductCard.title)}
-          />
-        </div>
+      {/* User message */}
+      {isUser && message.text && (
+        <div dangerouslySetInnerHTML={{ __html: sanitizedText }} />
       )}
 
-      {!isUser && message.product_comparison && message.product_comparison.length > 0 && (
-        <div className="mt-3 mb-1">
-          <ProductComparison products={message.product_comparison} />
-        </div>
-      )}
+      {/* Bot message components */}
+      {!isUser && (
+        <>
+          {/* Advice text */}
+          {sanitizedAdvice ? (
+            <div className="advice-text" dangerouslySetInnerHTML={{ __html: sanitizedAdvice }} />
+          ) : (
+            <p>No advice available. Try asking for specific product recommendations!</p>
+          )}
 
-      {!isUser && message.complementary_products && message.complementary_products.length > 0 && (
-        <div className="mt-3 mb-1">
-          <ComplementaryProducts
-            products={message.complementary_products.map((product) => ({
-              title: product.title,
-              description: product.description,
-              price: product.price,
-              image: product.image || '/pb_logo.svg',
-              landing_page: product.landing_page,
-              matches: product.matches,
-              variantId: product.variantId,
-              availableForSale: product.availableForSale ?? true,
-              quantityAvailable: product.quantityAvailable,
-            }))}
-          />
-        </div>
-      )}
+          {/* Product card */}
+          {filteredProductCard ? (
+            <div className="mt-3 mb-1">
+              <ProductCard
+                title={filteredProductCard.title}
+                description={`${filteredProductCard.description} \n\n ${getReasonForMatch(filteredProductCard)}`}
+                price={filteredProductCard.price}
+                image={filteredProductCard.image || '/pb_logo.svg'}
+                landing_page={filteredProductCard.landing_page}
+                matches={filteredProductCard.matches}
+                productId={filteredProductCard.variantId}
+                availableForSale={filteredProductCard.availableForSale}
+                quantityAvailable={filteredProductCard.quantityAvailable}
+                onAddToCart={(productId) => onAddToCart(productId, filteredProductCard.title)}
+              />
+            </div>
+          ) : null}
 
-      {!isUser && message.knowledge_base_answer && (
-        <div className="mt-3 mb-1">
-          <KnowledgeBaseDisplay answer={message.knowledge_base_answer} />
-        </div>
-      )}
+          {/* Product comparison */}
+          {message.product_comparison ? (
+            <div className="mt-3 mb-1">
+              <ProductComparison products={message.product_comparison} />
+            </div>
+          ) : null}
 
-      {!isUser && sanitizedAdvice && (
-        <div className="advice-text" dangerouslySetInnerHTML={{ __html: sanitizedAdvice }} />
+          {/* Complementary products */}
+          {filteredComplementaryProducts.length > 0 ? (
+            <div className="mt-3 mb-1">
+              <ComplementaryProducts
+                products={filteredComplementaryProducts.map((product) => ({
+                  title: product.title,
+                  description: product.description,
+                  price: product.price,
+                  image: product.image || '/pb_logo.svg',
+                  landing_page: product.landing_page,
+                  matches: product.matches,
+                  variantId: product.variantId,
+                  availableForSale: product.availableForSale ?? true,
+                  quantityAvailable: product.quantityAvailable,
+                }))}
+              />
+            </div>
+          ) : null}
+
+          {/* Knowledge base answer */}
+          {message.knowledge_base_answer ? (
+            <div className="mt-3 mb-1">
+              <KnowledgeBaseDisplay answer={message.knowledge_base_answer} />
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );

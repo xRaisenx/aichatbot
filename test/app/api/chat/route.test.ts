@@ -1,11 +1,11 @@
 // Environment variables are now set in jest.setup.cjs
 
-import { jest, describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
-import { POST } from '../../../../app/api/chat/route';
-import { NextRequest } from 'next/server';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import fs from 'fs';
+import { NextRequest } from 'next/server';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { POST } from '../../../../app/api/chat/route.ts';
 
 // Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);

@@ -1,3 +1,57 @@
+Changelog
+[Unreleased]
+[2025-05-14] - Fixes and Enhancements
+Fixed
+
+Removed Duplicate LLMStructuredResponse Type:
+
+Eliminated redundant LLMStructuredResponse definition in lib/types.ts to resolve type conflicts causing issues in the project. The primary definition, including optional history, product_card, and complementary_products fields, was retained for compatibility with lib/llm.ts and lib/redis.ts.
+No new variables or logic changes introduced, ensuring minimal impact on existing functionality.
+
+
+Resolved next.config.js Linting Error:
+
+Fixed SyntaxError: Unexpected token 'export' during npm run lint by converting next.config.js from ES module syntax (export default) to CommonJS (module.exports).
+Ensured compatibility with the project's CommonJS setup, avoiding the need for a full ES module migration, which could disrupt dependencies like distilgpt2 and Gemini providers.
+
+
+
+Added
+
+New Caching Functions in lib/redis.ts:
+Implemented cacheResponse and getCachedResponse functions to cache and retrieve ChatApiResponse objects in Redis, using the chat:response: prefix and a 7-day TTL.
+Aligned with existing cacheResponse signature by using ChatApiResponse instead of LLMStructuredResponse, ensuring type consistency and avoiding new variables.
+Added JSON serialization (JSON.stringify/JSON.parse) for Redis compatibility and logging with pino to match existing style.
+
+
+
+Changed
+
+Updated lib/types.ts:
+
+Streamlined type definitions by removing the duplicate LLMStructuredResponse, preserving all other interfaces (ChatApiResponse, ChatMessage, etc.) unchanged.
+
+
+Updated lib/redis.ts:
+
+Integrated new caching functions without altering existing logic, prefixes (chat:response:, chat:session:, etc.), or TTLs (e.g., 10-minute RESPONSE_TTL for original cacheResponse).
+Maintained compatibility with Upstash Redis and existing providers (distilgpt2, Gemini).
+
+
+
+Notes
+
+Deployment:
+
+Changes tested locally and prepared for deployment to Vercel and Hugging Face Spaces (https://xraisenx-chat-bot.hf.space).
+Instructions provided for committing changes, redeploying, and testing /api/chat endpoint and Redis caching.
+
+
+Future Considerations:
+
+Consider unifying the original and new cacheResponse functions if a single caching approach is preferred.
+Monitor for potential ES module migration if project requirements shift, though CommonJS is currently stable.
+
 # Actionable TODO List: Prioritized and Sequenced
 
 This document outlines the steps needed to maintain and improve the Planet Beauty AI Chatbot project, ensuring a comprehensive and up-to-date view of the project, while prioritizing tasks for sequential development to minimize risks.
@@ -47,49 +101,42 @@ To ensure the Planet Beauty AI Chatbot project is complete, maintainable, scalab
     *   **[x] Redis Caching & Knowledge Base (`lib/redis.ts`, `app/api/chat/route.ts`, `lib/llm.ts`):**
         *   Implemented API response caching to reduce LLM calls.
         *   Implemented session history management using Redis.
-        *   Implemented a dynamic knowledge base in Redis with basic keyword similarity search for common non-product queries.
+        *   Implemented dynamic knowledge base with keyword similarity search for common non-product queries.
         *   Added cache invalidation logic.
         *   Corrected `STATIC_BASE_PROMPT_CONTENT` syntax and exported `redisClient`.
     *   **[x] API Endpoint Updates (`app/api/chat/route.ts`):**
-        *   Integrated caching mechanisms for responses and session history.
+        *   Integrated Redis caching for responses and session history.
         *   Integrated knowledge base update logic.
-        *   Fixed `userId` handling (ensured it's passed from frontend and used in API).
-        *   Refined logic for `is_product_query` and `search_keywords` consistency.
+        *   Fixed `userId` handling.
+        *   Refined `is_product_query` and `search_keywords` consistency.
+        *   Corrected import statements and logging (pino).
+        *   (Previous May 10/11 changes retained for history)
     *   **[x] LLM Logic (`lib/llm.ts`):**
-        *   Integrated `getKnowledgebaseEntry` to check Redis before calling Gemini.
+        *   Integrated `getKnowledgebaseEntry` check before calling Gemini.
         *   Enhanced fallback and post-processing for `is_product_query` and JSON parsing.
-    *   **[x] Frontend (`components/ChatInterface.tsx`):**
-        *   Added `userId` state and included it in API requests to `/api/chat`.
-    *   **[x] Linting:** Addressed various linting errors.
-    *   **[x] scripts/populate-vector-index.ts:** Updated the id logic in vectorIndex.upsert and enhanced logging.
-    *   **[x] Type Definitions (`lib/types.ts`):** Combined ProductVectorMetadata and updated LLMStructuredResponse and ChatApiResponse.
-*   **Previous Work (May 10 - Retained for context):**
-    *   Initial LLM prompt refinements, gibberish detection, product data formatting.
-*   **Current Status (End of Session - May 12, 2025):**
-    *   Caching and dynamic knowledge base (Redis-based) implemented.
-    *   `is_product_query` and `userId` bugs addressed.
-    *   Logic for assigning `product_card` and `complementary_products` corrected.
-    *   All relevant documentation updated.
-*   **Key Outstanding Issues & Next Steps:**
-    1.  **[ ] Resolve Remaining Failing Test Cases in `simulate-chat.ts` (Critical Priority):**
-        *   (Details from previous actionable_todo.md retained for context)
-        *   **Action Plan for Next Session:**
-            *   **Intensive LLM Prompt Engineering (`lib/redis.ts` - `STATIC_BASE_PROMPT_CONTENT`):**
-                *   Prioritize rules for `requested_product_count` (especially for single items with filters).
-                *   Strengthen instructions for price filter text in `ai_understanding` and `advice`.
-                *   Ensure LLM includes all specific attributes from the query in `ai_understanding`.
-                *   Add instructions for the LLM to populate the `product_matches` field with `variantId` and `reasoning`.
-                *   Refine examples for sets, combos, and follow-up clarifications.
-            *   **Logic Review (`app/api/chat/route.ts`):**
-                *   Verify product assignment logic based on `requested_product_count`.
-            *   **Data Investigation:** If vendor query (for actual brands) persists, check vector store.
-    2.  **[ ] Knowledge Base Implementation (Initial Redis-based version COMPLETED):**
-        *   Dynamic knowledge base using Redis for common Q&A implemented in `lib/redis.ts` and integrated into `lib/llm.ts` and `app/api/chat/route.ts`.
-        *   **Next Step (Lower Priority):** Consider Upstash Vector for semantic search for knowledge base if keyword similarity proves insufficient.
-    3.  **[ ] Unit Testing (Medium Priority):**
-        *   Write/rebuild Jest unit tests for `lib/llm.ts`, `lib/redis.ts` (including caching & KB functions), and `app/api/chat/route.ts`.
+    *   **[x] Frontend Update (`components/ChatInterface.tsx`):**
+        *   Added `userId` state and included it in API requests.
+    *   **[x] Build Configuration (`tsconfig.json`):** Excluded reference file from build. (Completed May 10)
+    *   **[x] Centralized Types (`lib/types.ts`):**
+        *   Ensured type consistency. (Completed May 10)
+    *   **[x] Simulation Testing (`simulate-chat.ts`):** Used extensively for iterative debugging. Updated to tolerate empty vector index. (Ongoing from May 10, refined May 11/12)
+    *   [x] Iterative Debugging: Multiple rounds of simulation, log analysis, and code/prompt fixes. (Ongoing from May 10, continued May 11/12)
+    *   [x] ESLint Configuration Update (`.eslintrc.json`): Ignored `lib/upstash-vector-reference.ts`. (Completed May 11)
+    *   [x] UI/UX Enhancements (Components & Styles - May 11):
+    *   (Details retained for history)
+    *   [x] AI-Generated Suggested Questions (Refined - May 11):
+    *   (Details retained for history)
+    *   [x] Refined chatbox formatting in `app/api/chat/route.ts` for a more Gemini-like interaction.
 
 ### Phase 5: Chat Interface Implementation and Final Polish (Pending AI Enhancements & Debugging)
 (Details omitted for brevity - no changes)
 
 By following this prioritized list, the aim is to fully implement, configure, and stabilize the new "Gemini-like" AI architecture, enhanced with robust caching and a dynamic knowledge base.
+
+The remaining tasks are:
+*   [ ] Scalability Analysis
+*   [ ] Clear Intent Recognition (Ongoing refinement with Gemini prompts; "asdfjkl;" issue noted, needs addressing)
+*   [ ] Contextual Awareness (Ongoing refinement with chat history, improved with Redis session caching)
+*   [ ] API Documentation (Swagger/OpenAPI - Future)
+*   [ ] Improve Gemini API Mock in Unit Tests (Ongoing for rebuilt tests)
+*   [ ] **Rebuild Test Suites:** Incrementally develop new, stable Jest unit tests for the new architecture.

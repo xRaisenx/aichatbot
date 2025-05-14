@@ -7,7 +7,7 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": false,
-    "outDir": "dist_sim",
+    "outDir": "./dist", // Changed from "dist_sim" to avoid overwriting scripts
     "esModuleInterop": true,
     "module": "ESNext",
     "moduleResolution": "Node",
@@ -33,8 +33,11 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "lib/**/*",
-    "*.ts"
-  ],
+    "scripts/**/*",
+    "dist_sim/scripts/**/*",
+    "*.ts",
+    "*.ts_"
+, "app/api/chat/route.ts"  ],
   "exclude": [
     "node_modules",
     ".next",

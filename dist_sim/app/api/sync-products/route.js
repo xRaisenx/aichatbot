@@ -1,3 +1,5 @@
+// app/api/sync-products/route.js
+
 import { fetchAdminShopifyProducts } from '@lib/shopify-admin'; // Removed AdminShopifyProductNode
 import { Index as VectorIndex } from '@upstash/vector';
 import { NextResponse } from 'next/server';

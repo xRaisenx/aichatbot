@@ -1,7 +1,11 @@
 // lib/redis.ts
+
 import { Redis } from '@upstash/redis';
 import pino from 'pino';
-import { ChatApiResponse, ChatHistory } from './types';
+import {
+  ChatApiResponse,
+  ChatHistory,
+} from './types';
 
 export const redisClient = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL || '',
@@ -14,11 +18,13 @@ const logger = pino({ level: 'info' });
 const RESPONSE_CACHE_PREFIX = 'chat:response:';
 const SESSION_PREFIX = 'chat:session:';
 const KNOWLEDGEBASE_PREFIX = 'chat:knowledgebase:';
+const EMBEDDING_PREFIX = 'chat:embedding:';
 
 // TTLs (in seconds)
-const RESPONSE_TTL = 600; // 10 minutes for cached responses (volatile product queries)
-const SESSION_TTL = 1800; // 30 minutes for session data
-const KNOWLEDGEBASE_TTL = 2592000; // 30 days for knowledgebase entries
+const RESPONSE_TTL = 600; // 10 minutes
+const SESSION_TTL = 1800; // 30 minutes
+const KNOWLEDGEBASE_TTL = 2592000; // 30 days
+const EMBEDDING_TTL = 86400; // 1 day
 
 export interface CachedResponse {
   query: string;
@@ -33,16 +39,23 @@ export interface KnowledgebaseEntry {
   keywords: string[];
   productTypes?: string[];
   attributes?: string[];
-  confidence: number; // 0 to 1, based on usage or feedback
+  confidence: number;
   timestamp: number;
 }
 
-// Helper to normalize query for caching
+export interface CachedEmbedding {
+  query: string;
+  intent: string;
+  fields: Partial<ChatApiResponse>;
+  timestamp: number;
+}
+
+// Normalize query for Redis keys
 const normalizeQuery = (query: string): string => {
   return query.toLowerCase().trim().replace(/\s+/g, ' ');
 };
 
-// Helper to extract keywords
+// Extract relevant keywords for caching
 const extractKeywords = (query: string): string[] => {
   const queryLower = query.toLowerCase();
   return queryLower
@@ -74,7 +87,7 @@ const extractKeywords = (query: string): string[] => {
     );
 };
 
-// Cache response
+// Cache chat response
 export async function cacheResponse(userId: string, query: string, response: ChatApiResponse): Promise<void> {
   const normalizedQuery = normalizeQuery(query);
   const cacheKey = `${RESPONSE_CACHE_PREFIX}${userId}:${normalizedQuery}`;
@@ -85,8 +98,10 @@ export async function cacheResponse(userId: string, query: string, response: Cha
     keywords,
     timestamp: Date.now(),
   };
+
   try {
-    await redisClient.setex(cacheKey, RESPONSE_TTL, JSON.stringify(cached));
+    const ttl = response.cache_ttl_override || RESPONSE_TTL;
+    await redisClient.setex(cacheKey, ttl, JSON.stringify(cached));
     logger.info({ cacheKey }, 'Cached response.');
   } catch (error) {
     logger.error({ error, cacheKey }, 'Failed to cache response.');
@@ -97,12 +112,14 @@ export async function cacheResponse(userId: string, query: string, response: Cha
 export async function getCachedResponse(userId: string, query: string): Promise<CachedResponse | null> {
   const normalizedQuery = normalizeQuery(query);
   const cacheKey = `${RESPONSE_CACHE_PREFIX}${userId}:${normalizedQuery}`;
+
   try {
     const cached = await redisClient.get<string>(cacheKey);
     if (cached) {
       logger.info({ cacheKey }, 'Cache hit for response.');
       return JSON.parse(cached);
     }
+
     logger.debug({ cacheKey }, 'Cache miss for response.');
     return null;
   } catch (error) {
@@ -127,41 +144,63 @@ export async function getSessionHistory(userId: string): Promise<ChatHistory | n
   const cacheKey = `${SESSION_PREFIX}${userId}`;
   try {
     const history = await redisClient.get<string>(cacheKey);
-    if (history) {
-      logger.info({ cacheKey }, 'Retrieved session history.');
-      return JSON.parse(history);
-    }
-    return null;
+    return history ? JSON.parse(history) : null;
   } catch (error) {
     logger.error({ error, cacheKey }, 'Error retrieving session history.');
     return null;
   }
 }
 
-// Update knowledgebase
-export async function updateKnowledgebase(
-  query: string,
-  answer: string,
-  productTypes?: string[],
-  attributes?: string[]
-): Promise<void> {
+// Cache embedding
+export async function cacheEmbedding(userId: string, query: string, intent: string, fields: Partial<ChatApiResponse>): Promise<void> {
   const normalizedQuery = normalizeQuery(query);
-  const cacheKey = `${KNOWLEDGEBASE_PREFIX}${normalizedQuery}`;
-  const keywords = extractKeywords(query);
-  const entry: KnowledgebaseEntry = {
+  const cacheKey = `${EMBEDDING_PREFIX}${userId}:${normalizedQuery}`;
+  const cached: CachedEmbedding = {
     query: normalizedQuery,
-    answer,
-    keywords,
-    productTypes,
-    attributes,
-    confidence: 0.5, // Initial confidence
+    intent,
+    fields,
     timestamp: Date.now(),
   };
   try {
-    await redisClient.setex(cacheKey, KNOWLEDGEBASE_TTL, JSON.stringify(entry));
-    logger.info({ cacheKey }, 'Updated knowledgebase.');
+    await redisClient.setex(cacheKey, EMBEDDING_TTL, JSON.stringify(cached));
+    logger.info({ cacheKey }, 'Cached embedding.');
   } catch (error) {
-    logger.error({ error, cacheKey }, 'Failed to update knowledgebase.');
+    logger.error({ error, cacheKey }, 'Failed to cache embedding.');
+  }
+}
+
+// Retrieve cached embedding
+export async function getCachedEmbedding(userId: string, query: string): Promise<CachedEmbedding | null> {
+  const normalizedQuery = normalizeQuery(query);
+  const cacheKey = `${EMBEDDING_PREFIX}${userId}:${normalizedQuery}`;
+  try {
+    const cached = await redisClient.get<string>(cacheKey);
+    return cached ? JSON.parse(cached) : null;
+  } catch (error) {
+    logger.error({ error, cacheKey }, 'Error retrieving cached embedding.');
+    return null;
+  }
+}
+
+// Update knowledgebase
+export async function updateKnowledgebase(
+query: string, answer: string, productTypes?: string[], attributes?: string[]): Promise<void> {
+  const normalizedQuery = normalizeQuery(query);
+  const entry: KnowledgebaseEntry = {
+    query:normalizedQuery,
+    answer,
+    keywords: extractKeywords(query),
+    productTypes,
+    attributes,
+    confidence: 0.5,
+    timestamp: Date.now(),
+  };
+  const cacheKey = `${KNOWLEDGEBASE_PREFIX}${normalizedQuery}`;
+  try {
+    await redisClient.setex(cacheKey, KNOWLEDGEBASE_TTL, JSON.stringify(entry));
+    logger.info({ cacheKey: normalizedQuery }, 'Updated knowledgebase.');
+  } catch (error) {
+    logger.error({ error }, 'Failed to update knowledgebase.');
   }
 }
 
@@ -176,21 +215,30 @@ export async function getKnowledgebaseEntry(query: string): Promise<Knowledgebas
       return JSON.parse(entry);
     }
 
-    // Basic similarity search: check for keyword overlap
     const queryKeywords = extractKeywords(query);
     if (queryKeywords.length === 0) return null;
+
     const keys = await redisClient.keys(`${KNOWLEDGEBASE_PREFIX}*`);
+    let bestMatch: KnowledgebaseEntry | null = null;
+    let maxOverlap = 0;
+
     for (const key of keys) {
       const kbEntry = await redisClient.get<string>(key);
-      if (kbEntry) {
-        const parsed: KnowledgebaseEntry = JSON.parse(kbEntry);
-        const overlap = parsed.keywords.filter(k => queryKeywords.includes(k)).length;
-        if (overlap / Math.max(queryKeywords.length, parsed.keywords.length) > 0.7) {
-          logger.info({ key, overlap }, 'Knowledgebase similar match.');
-          return parsed;
-        }
+      if (!kbEntry) continue;
+
+      const parsed: KnowledgebaseEntry = JSON.parse(kbEntry);
+      const overlap = parsed.keywords.filter(k => queryKeywords.includes(k)).length;
+      if (overlap > maxOverlap && overlap / Math.max(parsed.keywords.length, queryKeywords.length) > 0.5) {
+        bestMatch = parsed;
+        maxOverlap = overlap;
       }
     }
+
+    if (bestMatch) {
+      logger.info({ cacheKey, overlap: maxOverlap }, 'Similar knowledgebase match found.');
+      return bestMatch;
+    }
+
     logger.debug({ query: normalizedQuery }, 'Knowledgebase miss.');
     return null;
   } catch (error) {
@@ -199,7 +247,7 @@ export async function getKnowledgebaseEntry(query: string): Promise<Knowledgebas
   }
 }
 
-// Invalidate caches on product sync
+// Invalidate product-related caches
 export async function invalidateProductCaches(): Promise<void> {
   try {
     const keys = await redisClient.keys(`${RESPONSE_CACHE_PREFIX}*`);
@@ -213,7 +261,7 @@ export async function invalidateProductCaches(): Promise<void> {
 }
 
 // Static system prompt
-export const STATIC_BASE_PROMPT_CONTENT = `You are Grok, Planet Beauty's clever and friendly AI assistant, here to help users navigate the world of beauty products with wit and wisdom. Planet Beauty is an online store selling various beauty products, not a brand itself. Analyze the latest user query and provided chat history (if any) in the context of a beauty store. Provide a JSON response with the following fields:
+export const STATIC_BASE_PROMPT_CONTENT = `You are Bella, Planet Beauty's clever and friendly AI assistant, here to help users navigate the world of beauty products with wit and wisdom. Planet Beauty is an online store selling various beauty products, not a brand itself. Analyze the latest user query and provided chat history (if any) in the context of a beauty store. Provide a JSON response with the following fields:
 
 1. "is_product_query": Boolean. True for queries seeking specific products or recommendations (e.g., "serum for dry skin", "recommend some lipsticks", "Do they contain retinol?" if history includes product query). False for greetings, general knowledge questions, or fictional queries.
 2. "search_keywords": Array of string keywords for product search. If "is_product_query" is true, populate with nouns, adjectives, product types, and attributes from the LATEST USER QUERY (e.g., ["serum", "dry skin"] for "serum for dry skin"). Include "cheap" or "cheapest" if mentioned. For follow-up queries about products (e.g., "Do they contain retinol?"), include relevant keywords from the history’s product context (e.g., ["eye cream", "retinol"]). Return [] if "is_product_query" is false.
@@ -229,7 +277,7 @@ export const STATIC_BASE_PROMPT_CONTENT = `You are Grok, Planet Beauty's clever 
    - Rule E: If the query asks for a generic list OR implies wanting multiple options (e.g., "show me serums"): Set to 10.
    - Rule F (Default): For ALL OTHER specific product queries (e.g., "vegan lipstick"): Set to 1.
 8. "ai_understanding": A concise summary of the user’s intent. Examples: "product query for vegan lipstick", "product query for sunscreen with price filter", "query for fictional product unobtainium cream", "general question about skincare", "follow-up product query about ingredients", "follow-up clarification". ALWAYS include "with price filter" if a price is mentioned (e.g., "under $X", "cheap X"). For follow-up queries referencing prior product discussions (e.g., "Do they contain retinol?"), include "follow-up product query". For clarification queries (e.g., "Is that part of a kit?"), include "follow-up clarification".
-9. "advice": A conversational, Grok-style response:
+9. "advice": A conversational, Grok/Gemini/ChatGPT-style response:
    - For "greeting" (e.g., "Hi"): "Hey there! What beauty adventure awaits us today?"
    - For "product query": Confirm the query and mention price in USD if a price filter is present (e.g., "Looking for vegan lipsticks under $30 USD!"). Example: "Vegan lipsticks, huh? Let’s find you some cruelty-free lip magic!" Be encouraging and helpful.
    - For "general question": Informative and fun. For skincare questions, mention cleansing, treating, moisturizing, maintaining skin health, and enhancing appearance. Do not attempt product search for these.
@@ -278,7 +326,7 @@ export const STATIC_BASE_PROMPT_CONTENT = `You are Grok, Planet Beauty's clever 
 - Query Normalization: Normalize user queries by converting to lowercase and removing extra spaces, as done in redis.ts, to ensure consistent caching and keyword extraction.
 - Error Handling: If the query cannot be processed due to system errors (e.g., API failure), return a default JSON response with "ai_understanding" set to "Error: AI service unavailable" and "advice" requesting the user to try again, as seen in llm.ts fallback logic.
 - Product Search Optimization: For combo/set queries, distribute product searches across specified product types (e.g., cleanser, moisturizer) to ensure diverse results, as implemented in route.ts vector search logic.
-- Tone Consistency: Maintain a friendly, witty, and professional tone in "advice" to align with Grok’s persona, ensuring responses are engaging and encourage further interaction.
+- Tone Consistency: Maintain a friendly, witty, and professional tone in "advice" to align with Grok/Gemini/ChatGPT’s persona, ensuring responses are engaging and encourage further interaction.
 - Vendor Handling: When a specific vendor is mentioned (e.g., "Guinot"), set "vendor" to the brand name and prioritize products from that vendor in search, unless the query implies a fictional brand.
 - Ingredient Queries: For queries about ingredients (e.g., "paraben-free"), set "is_ingredient_query" to true and include ingredient-related terms in "search_keywords" and "attributes" for precise product matching.
 - Skin Concern Extraction: Extract specific skin concerns (e.g., "dry skin", "acne") from the query or history to populate "skin_concern", enhancing search relevance for product queries.

@@ -9,7 +9,7 @@ Our solution leverages the power of Google's Gemini API for sophisticated natura
 ## ✨ Key Features: Crafting the Ultimate Shopping Companion
 
 *   **Sophisticated LLM-Powered Dialogue:** At its heart, our assistant uses **Google's Gemini API**, enabling it to understand not just words, but the *intent and context* behind complex customer queries. This allows for natural, flowing conversations and truly helpful, human-like advice.
-*   **Intelligent Product Discovery:** Combines **Upstash Vector** for rapid semantic search with traditional filtering, ensuring customers find the right products quickly, even with vague or multifaceted requests.
+*   **Intelligent Product Discovery:** Combines **Upstash Vector** for rapid semantic search with traditional filtering, ensuring customers find the right products quickly, even with vague or multifaceted requests. **Improved product recommendation logic prioritizes product type over brand, resulting in more relevant suggestions.**
 *   **Unbreakable Context & Memory:** Features **enhanced contextual chat history management using Upstash Redis for session persistence**, remembering previous interactions within a session. For longer conversations, it intelligently uses **LLM-powered summarization** to maintain relevant context efficiently.
 *   **Blazing-Fast & Responsive:** Leverages **efficient caching strategies with Upstash Redis** for API responses (reducing LLM calls for repeated queries) and session history, delivering swift responses and a smooth user experience.
 *   **Adaptive & Relevant Interactions:** While not "learning" in a self-modifying AI sense, the system is designed for **continuous improvement through iterative prompt engineering and a dynamic Redis-based knowledge base**. The LLM's capabilities allow for responses that adapt to the evolving conversation. The knowledge base learns from interactions to provide faster, consistent answers to common non-product queries.
@@ -17,7 +17,7 @@ Our solution leverages the power of Google's Gemini API for sophisticated natura
 *   **Dynamic Knowledge Base:** Answers general beauty-related questions and learns from user interactions. Common non-product queries and their answers are stored in Upstash Redis, allowing the chatbot to respond quickly without always relying on the LLM.
 *   **Real-time Product Sync:** Keeps product information current via Shopify Admin API.
 *   **Scalable & Robust Architecture:** Built on Next.js and Vercel, designed for reliability and growth.
-*   **Engaging Personality & Guided Interaction:** AI responses are crafted to be clear, concise, conversational, and helpful. The assistant further guides users by providing 4 AI-generated welcome questions on initial load, and then offering 3 new, contextually relevant suggested questions after each of its subsequent responses to encourage deeper engagement and exploration.
+*   **Engaging Personality & Guided Interaction:** AI responses are crafted to be clear, concise, conversational, and helpful, with refined chatbox formatting for a more Gemini-like interaction. The assistant further guides users by providing 4 AI-generated welcome questions on initial load, and then offering 3 new, contextually relevant suggested questions after each of its subsequent responses to encourage deeper engagement and exploration. The greeting line has been removed from the response to make it more concise.
 
 ## 📈 Business Value for Planet Beauty
 
@@ -49,27 +49,20 @@ The Planet Beauty AI Chatbot is meticulously engineered to be more than just a v
 *   **Adaptive & Continuously Improving:** While the AI doesn't "learn" independently, its sophisticated LLM allows it to provide responses that adapt intelligently to the flow of conversation. Furthermore, our commitment to **iterative prompt engineering and rigorous simulation testing** means its capabilities are constantly being refined and perfected based on real-world scenarios.
 *   **Reliable & Scalable Foundation:** Built on a modern tech stack (Next.js, Vercel), the assistant is designed for high availability and can scale to meet Planet Beauty's growing customer base.
 
-**Current Progress Snapshot (As of May 12, 2025):**
+**Current Progress Snapshot (As of May 14, 2025):**
 
 ```
 Project: Planet Beauty AI Chatbot - The Future of Beauty E-commerce
 Goal: To be the most intuitive and helpful AI Shopping Assistant in the beauty industry.
 
-Current Phase: Caching, Knowledge Base Integration & LLM Refinement
+Current Phase: Improved Product Recommendations & Response Formatting
 --------------------------------------------------------------------
 Key Milestones Achieved:
-  ✅ Core AI architecture (Google Gemini & Upstash Vector) successfully integrated.
-  ✅ Robust backend API for seamless chat processing and Shopify product sync.
-  ✅ Highly interactive and user-friendly chat interface featuring:
-     ✨ Crystal-clear product cards with USD pricing.
-     ✨ Innovative "reason for match" descriptions (pending full LLM rollout).
-     ✨ Proactive suggested questions to guide user discovery.
-     ✨ Natural "typing" indicator for enhanced user experience.
-  ✅ Integration of Upstash Redis for:
-     ✨ API Response Caching (reducing LLM calls).
-     ✨ Session History Management (maintaining conversation context).
-     ✨ Dynamic Knowledge Base (storing and retrieving common Q&As).
-  ✅ Fixes for `is_product_query` misclassification and `userId` handling in API requests.
+  ✅ Improved product recommendation logic to prioritize product type over brand.
+  ✅ Updated filtering in the `ChatMessage` component to ensure that only products matching the intended product type are displayed.
+  ✅ Removed the redundant greeting from the response.
+  ✅ Addressed issues where the chatbot was recommending irrelevant products (e.g., shampoo for a moisturizer query).
+  ✅ Ensured that the chatbot provides relevant product recommendations and presents them in a clear and concise format.
   ✅ Stable, lint-free codebase that builds successfully for production.
   ✅ Comprehensive project documentation updated to reflect new features.
 
@@ -83,42 +76,25 @@ The Path to Perfection - Our Commitment:
     understanding for nuanced queries not covered by the cache or knowledge base.
   - This involves ongoing prompt engineering and simulation testing to improve:
     1. Precise determination of `requested_product_count`.
-    2. Consistent interpretation and application of price/attribute filters.
+    2. Consistent identification and application of price/attribute filters.
     3. Accurate handling of vendor-specific queries (for brands other than Planet Beauty).
     4. Detailed, context-aware "reasoning" for product suggestions.
   - **Future Vision:** Achieve high reliability (~90% pass rate in simulations), then expand into a full-fledged Shopify App.
 ```
 
-## 🛠️ Current Development Status (As of May 12, 2025)
+## 🛠️ Current Development Status (As of May 14, 2025)
 
 This section summarizes recent development activities.
 
 *   **LLM Logic (`lib/llm.ts`):**
-    *   Improved Logging: Changed logger level from warn to info to capture more details for debugging test failures.
-    *   Enhanced Fallback Logic: Added specific fallbacks for all test cases. Included `is_fictional_product_query` and `is_clarification_needed` in fallback responses, addressing undefined field errors. Ensured advice includes expected keywords. Set `requested_product_count` correctly for sets (3), combos (2), and single products (1).
-    *   Query Classification: Added `isFollowUpClarification` to detect follow-up queries. Improved general question detection. Enhanced `isPotentiallyFictional` to explicitly handle "planet beauty brand".
-    *   Structured Response: Ensured `is_fictional_product_query` and `is_clarification_needed` are always defined. Removed `product_matches` field.
-    *   Consistency with Test Expectations: Aligned `ai_understanding` and `advice` with `simulate-chat.ts` expectations. Ensured `usage_instructions` are set for product queries.
+    *   Prioritized product type over brand when extracting search keywords.
 *   **API Endpoint Logic (`app/api/chat/route.ts`):**
-    *   Improved Logging: Changed logger level from warn to info to capture more details for debugging.
-    *   Product Card Prioritization: Set `product_card` when `llmResult.requested_product_count === 1`. Set `complementary_products` only when `llmResult.requested_product_count > 1`, with a slice to match the requested count.
-    *   Search Skipping: Skipped vector search for `is_fictional_product_query` or `is_clarification_needed`.
-    *   Response Fields: Added `is_fictional_product_query` and `is_clarification_needed` to `responseBody`.
-    *   Search Logic: Increased `topK` in vector query to `Math.max(3, requested_product_count * 2)`. Removed redundant `isFollowUpProductQuery` logic.
-    *   Type Safety: Set `product_card` to `null` instead of `undefined` to match `ChatApiResponse` type. Ensured `complementary_products` is `null` when no products or `requested_product_count <= 1`.
-*   **Simulation Testing (`simulate-chat.ts`):**
-    *   Updated `ApiChatResponse` Interface: Changed `product_card` and `complementary_products` to use `null`. Made `is_product_query`, `is_fictional_product_query`, `is_clarification_needed`, and `history` required fields.
-    *   Enhanced Evaluation Logic: Added a check for `is_product_query`. Updated `productCardPresent` check to use `responseBody.product_card !== null`. Ensured `complementary_products` count uses `responseBody.complementary_products?.length || 0` to handle null.
-    *   Improved Logging: Added logging for `is_product_query`, `is_fictional_product_query`, and `is_clarification_needed` in the response output.
-    *   Greeting Scenario Check: Updated the greeting check to verify `is_product_query: false`.
-*   **Type Definitions (`lib/types.ts`):**
-    *   Fixed TypeScript Error: Changed `ProductVectorMetadata.price: string` to `price: number`.
-    *   Combined ProductVectorMetadata: Removed `handle`, `vendor`, `productType`, `usageInstructions`, and `[key: string]: unknown`. Kept `id`, `title`, `price`, `imageUrl`, `productUrl`, `variantId`, `tags`, `textForBM25`. Updated `imageUrl: string | null` to match `ProductCardResponse.image`.
-    *   Updated LLMStructuredResponse: Removed `product_matches`. Updated `price_filter` to `{ max_price: number; currency: string } | null`. Made `is_combo_set_query`, `is_fictional_product_query`, and `is_clarification_needed` required (boolean). Kept `usage_instructions: string`.
-    *   Updated ChatApiResponse: Changed `product_card` and `complementary_products` to use `null`. Removed `product_comparison`. Made `is_fictional_product_query` and `is_clarification_needed` required (boolean). Kept `history: ChatHistory`.
-*   **scripts/populate-vector-index.ts:**
-    *   Fixed id Type Error: Updated the id logic in `vectorIndex.upsert` to `product.variantId || product.id || fallback_${product.title.replace(/\s+/g, '_')}`.
-    *   Enhanced Logging: Added `upsertId` to the log in Upserted product to vector index to track the ID used for each product.
+    *   Added product_type to the Message object.
+    *   Removed redundant greeting.
+    *   Improved filtering logic to be more lenient.
+*   **Components (`components/ChatMessage.tsx`):**
+    *   Added product_type to the Message interface.
+    *   Modified isProductRelevant function to filter products based on product_type.
 
 **Previous UI/UX Enhancements & Fixes (May 11):**
 *   (Details from previous README section retained for context, e.g., ESLint, product description handling, suggested questions API)
@@ -138,7 +114,7 @@ This section summarizes recent development activities.
 2.  **LLM Prompt Engineering (`lib/redis.ts`) (Ongoing High Priority):**
     *   Continue refining `STATIC_BASE_PROMPT_CONTENT` based on simulation results and manual testing to improve:
         *   Accuracy of `requested_product_count` for various query types.
-        *   Consistent inclusion of price filter details in `ai_understanding` and `advice`.
+        *   Consistent inclusion of price/attribute filters in `ai_understanding` and `USD` in `advice`.
         *   Handling of specific attribute queries and complex searches.
         *   Generation of `product_matches` with `reasoning`.
 3.  **API Logic Review (`app/api/chat/route.ts`):**
@@ -220,7 +196,7 @@ Product synchronization (`app/api/sync-products/route.ts`) populates the vector 
 
 ---
 
-## 📊 Current Simulation Snapshot (May 12, 2025)
+## 📊 Current Simulation Snapshot (May 14, 2025)
 
 Our rigorous testing framework (`simulate-chat.ts`) currently shows the following:
 
@@ -235,8 +211,8 @@ Our rigorous testing framework (`simulate-chat.ts`) currently shows the followin
     *   ✅ Maintaining conversation context for memory-based queries.
 *   **Areas for LLM Refinement (Next Focus):**
     *   🎯 Precision in `requested_product_count` for filtered single-item queries (currently returning lists).
-    *   🎯 Consistent identification and use of price filters (missing "price filter" in `ai_understanding` and "USD" in `advice`).
-    *   🎯 Accuracy in vendor-specific searches (currently not finding "Planet Beauty brand moisturizer").
+    *   🎯 Consistent identification and use of price/attribute filters (missing "price filter" in `ai_understanding` and "USD" in `advice`).
+    *   🎯 Accurate handling of vendor-specific queries (for brands other than Planet Beauty).
     *   🎯 Robustness in handling edge-case/gibberish inputs (aligning `ai_understanding` with direct route response).
     *   🎯 Correct product counts for sets (e.g., "Skincare set for dry skin" expected 3, got 10) and combos (e.g., "cleanser and toner" expected 2, got 1).
     *   🎯 Nuanced follow-up clarification responses (e.g., missing "kit" in advice).

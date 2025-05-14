@@ -1,3 +1,4 @@
+
 // lib/types.ts
 
 /**
@@ -65,6 +66,36 @@ export interface LLMStructuredResponse {
   is_combo_set_query: boolean;
   is_fictional_product_query: boolean;
   is_clarification_needed: boolean;
+  is_ingredient_query: boolean;
+  skin_concern: string[];
+  is_price_range_query: boolean;
+  response_confidence: number;
+  suggested_follow_ups: string[];
+  is_out_of_stock_query: boolean;
+  query_language: string;
+  is_comparison_query: boolean;
+  cache_ttl_override: number;
+  is_location_specific: boolean;
+  user_intent_priority: string;
+  alternative_product_types: string[];
+  is_feedback_request: boolean;
+  contextual_clarification: string;
+  is_subscription_query: boolean;
+  is_personalized_query: boolean;
+  product_application_time: string[];
+  is_promotion_query: boolean;
+  user_sentiment: string;
+  is_gift_query: string[];
+  product_packaging: string[];
+  is_educational_query: boolean;
+  related_categories: string[];
+  is_urgency_indicated: boolean;
+  query_complexity: number;
+
+  // Optional internal use
+  history?: ChatHistory;
+  product_card?: ProductCardResponse | null;
+  complementary_products?: ProductCardResponse[] | null;
 }
 
 /**
@@ -74,11 +105,45 @@ export interface ChatApiResponse {
   advice: string;
   product_card: ProductCardResponse | null;
   complementary_products: ProductCardResponse[] | null;
+  history: ChatHistory;
   is_product_query: boolean;
   ai_understanding: string;
   is_fictional_product_query: boolean;
   is_clarification_needed: boolean;
-  history: ChatHistory;
+  search_keywords: string[];
+  product_types: string[];
+  attributes: string[];
+  vendor: string | null;
+  price_filter: { max_price: number; currency: string } | null;
+  requested_product_count: number;
+  sort_by_price: boolean;
+  usage_instructions: string;
+  is_combo_set_query: boolean;
+  is_ingredient_query: boolean;
+  skin_concern: string[];
+  is_price_range_query: boolean;
+  response_confidence: number;
+  suggested_follow_ups: string[];
+  is_out_of_stock_query: boolean;
+  query_language: string;
+  is_comparison_query: boolean;
+  cache_ttl_override: number;
+  is_location_specific: boolean;
+  user_intent_priority: string;
+  alternative_product_types: string[];
+  is_feedback_request: boolean;
+  contextual_clarification: string;
+  is_subscription_query: boolean;
+  is_personalized_query: boolean;
+  product_application_time: string[];
+  is_promotion_query: boolean;
+  user_sentiment: string;
+  is_gift_query: string[];
+  product_packaging: string[];
+  is_educational_query: boolean;
+  related_categories: string[];
+  is_urgency_indicated: boolean;
+  query_complexity: number;
 }
 
 /**
