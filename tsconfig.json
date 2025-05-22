@@ -36,12 +36,13 @@
     "scripts/**/*",
     "dist_sim/scripts/**/*",
     "*.ts",
-    "*.ts_"
-, "app/api/chat/route.ts"  ],
+    "*.ts_",
+    "app/api/chat/route.complex.dynamic.ts"  ],
   "exclude": [
     "node_modules",
     ".next",
     "dist",
-    "lib/upstash-vector-reference.ts"
+    "lib/upstash-vector-reference.ts",
+    "app/api/chat/route.complex.dynamic.ts"
   ]
 }

@@ -6,9 +6,9 @@
     right: 20px;
     z-index: 1000;
     transition: all 0.3s ease-in-out;
-  }
-  
-  .toggle {
+}
+
+.toggle {
     background: #E91E63;
     color: #FFFFFF;
     width: 60px;
@@ -22,14 +22,14 @@
     justify-content: center;
     font-size: 1.5rem;
     transition: transform 0.2s, opacity 0.3s ease-in-out;
-  }
-  
-  .toggle:hover {
+}
+
+.toggle:hover {
     transform: scale(1.1);
     background: #F06292;
-  }
-  
-  .container {
+}
+
+.container {
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -43,58 +43,65 @@
     transition: all 0.3s ease-in-out;
     resize: both;
     transform-origin: bottom right;
-    width: 60px;
-    height: 90%;
+    width: 60px; /* Start collapsed */
+    height: 60px; /* Start collapsed */
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-  }
-  
-  .container.open {
+}
+
+.container.open {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-  }
-  
-  @media (min-width: 1024px) {
+    width: 40vw; /* Default open width */
+    height: 90%; /* Default open height */
+    max-width: 600px;
+    min-height: 400px;
+    min-width: 300px;
+}
+
+@media (min-width: 1024px) {
     .container.open {
-      width: 40vw;
-      height: 90%;
-      max-width: 600px;
-      min-height: 400px;
-      min-width: 300px;
+        width: 40vw;
+        height: 90%;
+        max-width: 600px;
+        min-height: 400px;
+        min-width: 300px;
     }
-  }
-  
-  @media (min-width: 768px) and (max-width: 1023px) {
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
     .container.open {
-      width: 50vw;
-      height: 80vh;
-      max-width: 500px;
+        width: 50vw;
+        height: 80vh;
+        max-width: 500px;
     }
-  }
-  
-  @media (max-width: 767px) {
+}
+
+@media (max-width: 767px) {
     .container.open {
-      width: 95vw;
-      height: 90vh;
-      bottom: 10px;
-      right: 10px;
-      border-radius: 8px;
+        width: 95vw;
+        height: 90vh;
+        bottom: 10px;
+        right: 10px;
+        border-radius: 8px;
+        min-width: unset; /* Allow smaller width on mobile */
+        min-height: unset; /* Allow smaller height on mobile */
     }
     .toggle {
-      width: 50px;
-      height: 50px;
-      font-size: 1.25rem;
+        width: 50px;
+        height: 50px;
+        font-size: 1.25rem;
     }
-  }
-  
-  .dark .container {
+}
+
+.dark .container {
     background: #1A1A1A;
     border-color: #444444;
-  }
-  
-  .header {
+}
+
+.header {
     background: #E91E63;
     color: #FFFFFF;
     padding: 12px 16px;
@@ -104,27 +111,27 @@
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
-  }
-  
-  .header img {
+}
+
+.header img {
     height: 24px;
-  }
-  
-  .controls {
+}
+
+.controls {
     display: flex;
     gap: 8px;
     padding: 8px 16px;
     background: #FAFAFA;
     border-bottom: 1px solid #E0E0E0;
     flex-shrink: 0;
-  }
-  
-  .dark .controls {
+}
+
+.dark .controls {
     background: #222222;
     border-bottom-color: #444444;
-  }
-  
-  .controlBtn {
+}
+
+.controlBtn {
     background: #F06292;
     color: #FFFFFF;
     padding: 6px 12px;
@@ -135,277 +142,148 @@
     display: flex;
     align-items: center;
     transition: background 0.2s, transform 0.2s;
-  }
-  
-  .controlBtn:hover:not(:disabled) {
+}
+
+.controlBtn:hover:not(:disabled) {
     background: #E91E63;
     transform: translateY(-1px);
-  }
-  
-  .controlBtn:disabled {
+}
+
+.controlBtn:disabled {
     background: #B0B0B0;
     cursor: not-allowed;
-  }
-  
-  .area {
+}
+
+.area {
     flex: 1;
     padding: 16px;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #F06292 #FFFFFF;
     background-color: #f0f2f5;
-  }
-  
-  .dark .area {
+}
+
+.dark .area {
     scrollbar-color: #F06292 #1A1A1A;
-  }
-  
-  .area::-webkit-scrollbar {
+    background-color: #1A1A1A;
+}
+
+.area::-webkit-scrollbar {
     width: 6px;
-  }
-  
-  .area::-webkit-scrollbar-thumb {
+}
+
+.area::-webkit-scrollbar-thumb {
     background: #F06292;
     border-radius: 3px;
-  }
-  
-  .area::-webkit-scrollbar-track {
+}
+
+.area::-webkit-scrollbar-track {
     background: #FFFFFF;
-  }
-  
-  .dark .area::-webkit-scrollbar-track {
+}
+
+.dark .area::-webkit-scrollbar-track {
     background: #1A1A1A;
-  }
-  
-  .message-base {
-    margin-bottom: 12px;
-    max-width: 80%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    line-height: 1.4;
+}
+
+.message-base {
+    margin-bottom: 12px; /* Increased spacing */
+    max-width: 85%; /* Increased max width */
+    padding: 10px 14px; /* Adjusted padding */
+    border-radius: 16px; /* Adjusted radius */
+    line-height: 1.5; /* Adjusted line height */
     font-size: 1rem;
     animation: slideIn 0.3s ease;
-  }
-  
-  .user-message {
+    word-wrap: break-word; /* Ensure long words break */
+    white-space: pre-wrap; /* Preserve whitespace and break lines */
+}
+
+.user-message {
     background: #E91E63;
     color: #FFFFFF;
     margin-left: auto;
-    border-bottom-right-radius: 2px;
-  }
-  
-  .bot-message {
+    border-bottom-right-radius: 4px; /* Adjusted radius */
+}
+
+.bot-message {
     background: #FFFFFF;
     color: #111827;
     margin-right: auto;
-    border-bottom-left-radius: 2px;
-  }
-  
-  .dark .bot-message {
+    border-bottom-left-radius: 4px; /* Adjusted radius */
+}
+
+.dark .bot-message {
     background: #2A2A2A;
     color: #E0E0E0;
-  }
-  
-  .messageBubble {
-    border-radius: 24px;
-    padding: 12px 18px;
-  }
-  
-  .typing-container {
+}
+
+.errorMessage {
+    background: #fee2e2; /* Light red */
+    color: #991b1b; /* Dark red */
+    border: 1px solid #fca5a5; /* Red border */
+}
+
+.dark .errorMessage {
+    background: #450a0a; /* Darker red */
+    color: #fecaca; /* Lighter red */
+    border-color: #dc2626; /* Red border */
+}
+
+
+.typing-container {
     display: flex;
     align-items: center;
     gap: 4px;
     opacity: 0.8;
-  }
-  
-  .typing-dots {
+}
+
+.typing-dots {
     display: flex;
     gap: 4px;
-  }
-  
-  .typing-dot {
+}
+
+.typing-dot {
     width: 8px;
     height: 8px;
     background-color: #a3a3a3;
     border-radius: 50%;
-  }
-  
-  .productCard {
-    border-radius: 16px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-    padding: 16px;
-    margin-bottom: 12px;
-    display: flex;
-    flex-direction: row;
-    gap: 16px;
-    background: #F9FAFB;
-    border: 1px solid #E5E7EB;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-  
-  .productCard:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-  }
-  
-  .dark .productCard {
-    background: #2A2A2A;
-    border-color: #444444;
-  }
-  
-  .productImage {
-    border-radius: 12px;
-    object-fit: cover;
-    width: 80px;
-    height: 80px;
-    border: 1px solid #E5E7EB;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    flex-shrink: 0;
-  }
-  
-  .dark .productImage {
-    border-color: #444444;
-  }
-  
-  .productInfo {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 200px;
-  }
-  
-  .productTitle {
-    font-size: 0.9rem; /* Reduced by ~20% from 1.125rem */
-    font-weight: 700;
-    margin: 0;
-    color: #111827;
-  }
-  
-  .dark .productTitle {
-    color: #E0E0E0;
-  }
-  
-  .productDescription {
-    font-size: 0.875rem;
-    color: #6B7280;
-    margin: 0;
-  }
-  
-  .productReasoning {
-    font-size: 0.75rem;
-    color: #6B7280;
-    margin: 0;
-    font-style: italic;
-  }
-  
-  .dark .productReasoning {
-    color: #9CA3AF;
-  }
-  
-  .productPrice {
-    font-size: 1rem; /* Reduced by ~20% from 1.25rem */
-    font-weight: 600;
-    margin: 0;
-    color: #111827;
-  }
-  
-  .dark .productPrice {
-    color: #E0E0E0;
-  }
-  
-  .outOfStock {
-    font-size: 0.75rem;
-    color: #CC0000;
-    margin: 5px 0 0;
-  }
-  
-  .lowStock {
-    font-size: 0.75rem;
-    color: #E6AC00;
-    margin: 5px 0 0;
-  }
-  
-  .productActions {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-    flex-wrap: wrap;
-  }
-  
-  .viewProductPink {
-    background: linear-gradient(135deg, #F06292 0%, #E91E63 100%);
-    color: #FFFFFF;
-    border: none;
-    padding: 10px 20px; /* Increased padding for larger size */
-    border-radius: 8px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-align: center;
-    text-decoration: none;
-    transition: background 0.3s ease, transform 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    min-width: 120px; /* Minimum width to match text field proportion */
-    flex-grow: 1;
-  }
-  
-  .viewProductPink:hover {
-    background: linear-gradient(135deg, #E91E63 0%, #F06292 100%);
-    transform: translateY(-1px);
-  }
-  
-  .addToCartButton {
-    background: linear-gradient(135deg, #F06292 0%, #E91E63 100%); /* Matching pink color */
-    color: #FFFFFF;
-    border: none;
-    padding: 10px 20px; /* Increased padding for larger size */
-    border-radius: 8px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-align: center;
-    cursor: pointer;
-    transition: background 0.3s ease, transform 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    min-width: 120px; /* Minimum width to match text field proportion */
-    flex-grow: 1;
-  }
-  
-  .addToCartButton:hover {
-    background: linear-gradient(135deg, #E91E63 0%, #F06292 100%);
-    transform: translateY(-1px);
-  }
-  
-  .addToCartButton:disabled {
-    background: #B0B0B0;
-    cursor: not-allowed;
-  }
-  
-  .productMatches {
-    font-size: 0.75rem;
-    color: #6B7280;
-    margin: 5px 0 0;
-  }
-  
-  .examples {
-    padding: 12px 16px;
+}
+
+/* Product Card styles moved to ProductCard.module.css */
+/* Complementary Products styles moved to ComplementaryProducts.module.css */
+/* Knowledge Base Display styles moved to KnowledgeBaseDisplay.module.css */
+/* Product Comparison styles moved to ProductComparison.module.css */
+
+
+.examples {
+    padding: 12px 16px; /* Adjusted padding */
     border-top: 1px solid #E0E0E0;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px; /* Adjusted gap */
     background: #FAFAFA;
     flex-shrink: 0;
-  }
-  
-  .dark .examples {
+    align-items: center; /* Align items vertically */
+}
+
+.dark .examples {
     border-top-color: #444444;
     background: #222222;
-  }
-  
-  .chip {
+}
+
+.examplesTitle {
+    font-size: 0.875rem; /* Smaller font */
+    font-weight: 600;
+    color: #4B5563;
+    margin-right: 8px; /* Space between title and chips */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.dark .examplesTitle {
+    color: #9CA3AF;
+}
+
+
+.chip {
     background: #F06292;
     color: #FFFFFF;
     padding: 6px 12px;
@@ -413,119 +291,293 @@
     font-size: 0.75rem;
     cursor: pointer;
     transition: background 0.2s, transform 0.2s;
-  }
-  
-  .chip:hover {
+    border: none; /* Ensure no default button border */
+    flex-grow: 0; /* Prevent chips from growing */
+    flex-shrink: 1; /* Allow chips to shrink */
+    min-width: 0; /* Allow shrinking below content size */
+    text-align: left; /* Align text left */
+}
+
+.chip:hover {
     background: #E91E63;
     transform: translateY(-2px);
-  }
-  
-  .inputArea {
+}
+
+.inputArea {
     display: flex;
-    align-items: center;
-    padding: 12px;
+    align-items: center; /* Align items vertically */
+    padding: 12px; /* Adjusted padding */
     background: #FFFFFF;
     border-top: 1px solid #E0E0E0;
-    gap: 8px;
+    gap: 8px; /* Adjusted gap */
     flex-shrink: 0;
-  }
-  
-  .dark .inputArea {
+}
+
+.dark .inputArea {
     background: #1A1A1A;
     border-top-color: #444444;
-  }
-  
-  .input {
+}
+
+.input {
     flex: 1;
-    padding: 10px 14px;
+    padding: 10px 14px; /* Adjusted padding */
     border: 1px solid #E0E0E0;
-    border-radius: 20px;
-    font-size: 0.875rem;
+    border-radius: 20px; /* Adjusted radius */
+    font-size: 1rem; /* Adjusted font size */
     outline: none;
     transition: border 0.2s;
-    min-width: 120px; /* Match button minimum width */
-  }
-  
-  .dark .input {
+    min-width: 100px;
+    background-color: #FFFFFF; /* Explicit background */
+    color: #111827; /* Explicit text color */
+}
+
+.dark .input {
     border-color: #444444;
     background: #2A2A2A;
     color: #E0E0E0;
-  }
-  
-  .input:focus {
+}
+
+.input:focus {
     border-color: #E91E63;
-  }
-  
-  .iconButton {
+    box-shadow: 0 0 0 2px rgba(233, 30, 99, 0.2); /* Add focus ring */
+}
+
+.iconButton {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 8px;
+    padding: 8px; /* Adjusted padding */
     border-radius: 50%;
     transition: background 0.2s;
-  }
-  
-  .iconButton:hover:not(:disabled) {
-    background: rgba(0, 0, 0, 0.1);
-  }
-  
-  .dark .iconButton:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  
-  .sendBtn {
-    color: #E91E63;
-    padding: 10px;
-  }
-  
-  .sendBtn:disabled {
+    display: flex; /* Use flex to center icon */
+    align-items: center;
+    justify-content: center;
+}
+
+.iconButton:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.05); /* Lighter hover */
+}
+
+.dark .iconButton:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05); /* Lighter hover */
+}
+
+.sendBtn:disabled {
     color: #B0B0B0;
     cursor: not-allowed;
-  }
-  
-  .footer {
+}
+
+.footer {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 32px;
+    height: 30px; /* Adjusted height */
     width: 100%;
-    padding: 8px;
+    padding: 6px;
     border-top: 1px solid #E0E0E0;
     background: #FFFFFF;
     flex-shrink: 0;
     font-size: 12px;
     color: #6B7280;
-  }
-  
-  .dark .footer {
+}
+
+.dark .footer {
     background: #1A1A1A;
     border-top-color: #444444;
     color: #9CA3AF;
-  }
-  
-  @keyframes slideIn {
+}
+
+@keyframes slideIn {
     from {
-      opacity: 0;
-      transform: translateY(10px);
+        opacity: 0;
+        transform: translateY(10px);
     }
     to {
-      opacity: 1;
-      transform: translateY(0);
+        opacity: 1;
+        transform: translateY(0);
     }
-  }
-  
-  @media (max-width: 767px) {
-    .viewProductPink,
-    .addToCartButton {
-      padding: 12px 24px; /* Slightly larger for portrait view */
-      min-width: 140px; /* Adjusted for better proportion in portrait */
+}
+
+/* Responsive adjustments for input area */
+@media (max-width: 767px) {
+    .inputArea {
+        padding: 8px;
+        gap: 6px;
     }
-  }
-  
-  @media (min-width: 768px) {
-    .viewProductPink,
-    .addToCartButton {
-      padding: 10px 20px; /* Consistent with landscape */
-      min-width: 120px;
+    .input {
+        padding: 8px 12px;
+        font-size: 0.875rem;
     }
-  }
+    .iconButton {
+        padding: 6px;
+    }
+    .sendBtn {
+        padding: 6px;
+    }
+     .examples {
+        padding: 8px 12px;
+        gap: 6px;
+    }
+    .examplesTitle {
+        font-size: 0.8rem;
+        margin-right: 6px;
+    }
+    .chip {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+}
+
+
+/* Formatted content classes */
+/* Ensure these styles are applied correctly within the message bubble */
+/* Removed empty rule */
+
+
+.formatted-paragraph {
+    margin: 0.5em 0; /* Add some vertical margin */
+    padding: 0;
+    line-height: 1.5;
+    color: inherit; /* Inherit color from parent message bubble */
+}
+
+.formatted-heading-1, .formatted-heading-2, .formatted-heading-3 {
+  margin: 1em 0 0.5em; /* Adjusted margin */
+  padding: 0;
+  font-weight: 600;
+  color: inherit; /* Inherit color */
+}
+.formatted-heading-1 { font-size: 1.5em; }
+.formatted-heading-2 { font-size: 1.3em; }
+.formatted-heading-3 { font-size: 1.2em; }
+
+
+.formatted-strong {
+    font-weight: 700;
+}
+
+.formatted-em {
+    font-style: italic;
+}
+
+.formatted-link {
+    color: #2563eb; /* Blue link color */
+    text-decoration: underline;
+    transition: color 0.2s;
+}
+
+.dark .formatted-link {
+    color: #93c5fd; /* Lighter blue for dark mode */
+}
+
+.formatted-link:hover {
+    color: #1e40af;
+}
+
+.dark .formatted-link:hover {
+     color: #60a5fa;
+}
+
+
+.formatted-pre {
+    margin: 0.5em 0; /* Adjusted margin */
+    padding: 0.5em;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #333; /* Code text color */
+}
+
+.dark .formatted-pre {
+    background: #2A2A2A;
+    border-color: #444444;
+    color: #E0E0E0;
+}
+
+.formatted-code {
+    background: #f8fafc;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #333; /* Inline code text color */
+}
+
+.dark .formatted-code {
+    background: #2A2A2A;
+    color: #E0E0E0;
+}
+
+
+.formatted-blockquote {
+    margin: 0.5em 0; /* Adjusted margin */
+    padding: 0.5em 1em; /* Adjusted padding */
+    border-left: 4px solid #6b7280;
+    background: #f9fafb;
+    border-radius: 3px;
+    color: #374151;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+.dark .formatted-blockquote {
+    background: #2A2A2A;
+    border-color: #444444;
+    color: #E0E0E0;
+}
+
+.formatted-emoji {
+    font-size: 1.1em;
+    margin-right: 4px;
+    vertical-align: middle; /* Align emoji better */
+}
+
+.formatted-ul {
+    margin: 0.5em 0; /* Adjusted margin */
+    padding: 0 0 0 1.5em; /* Adjusted padding */
+    list-style: none; /* Remove default list style */
+    font-size: 1em;
+    color: inherit; /* Inherit color */
+}
+
+.formatted-ol {
+    margin: 0.5em 0; /* Adjusted margin */
+    padding: 0 0 0 1.8em; /* Adjusted padding for numbers */
+    list-style: decimal;
+    font-size: 1em;
+    color: inherit; /* Inherit color */
+}
+
+.formatted-li {
+    margin: 0.25em 0; /* Add some vertical margin to list items */
+    padding-left: 0; /* Remove default padding */
+    position: relative;
+    line-height: 1.5;
+    color: inherit; /* Inherit color */
+}
+
+.formatted-li-bullet {
+    position: absolute;
+    left: -1.2em; /* Position bullet outside */
+    top: 0.5em; /* Align bullet vertically */
+    width: 6px;
+    height: 6px;
+    background-color: currentColor; /* Use text color for bullet */
+    border-radius: 50%;
+}
+
+.formatted-li-ol {
+    margin: 0.25em 0; /* Add some vertical margin to list items */
+    padding-left: 0; /* Remove default padding */
+    line-height: 1.5;
+    color: inherit; /* Inherit color */
+}
+
+/* Ensure list items within formatted lists inherit color */
+.formatted-ul li,
+.formatted-ol li {
+    color: inherit;
+}

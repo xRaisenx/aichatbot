@@ -1,7 +1,6 @@
 // components/KnowledgeBaseDisplay.tsx
 'use client';
 
-import React from 'react';
 import DOMPurify from 'isomorphic-dompurify'; // Import DOMPurify
 
 // Define the interface locally for now, or import if shared
@@ -28,7 +27,7 @@ export function KnowledgeBaseDisplay({ answer }: KnowledgeBaseDisplayProps) {
       {answer.question_matched && (
           <h3 className="text-md font-semibold mb-1">From our FAQ: {answer.question_matched}</h3>
       )}
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Knowledge base answer will appear here once provided by the AI.</p> {/* Added placeholder text */}
+      {/* Removed placeholder text - only show if KB answer is actually listed */}
       <div className="text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(answer.answer) }} /> {/* Sanitize answer */}
       {answer.source_url && (
         <p className="mt-2 text-xs">

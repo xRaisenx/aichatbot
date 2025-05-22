@@ -1,5 +1,5 @@
 // lib/gemini.ts
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 if (!process.env.GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY in .env.local.');
@@ -67,8 +67,8 @@ Example Output JSON:
       contents: messages,
       generationConfig: {
         responseMimeType: 'application/json',
-        temperature: 0.5,
-        maxOutputTokens: 350,
+        temperature: 0.9,
+        maxOutputTokens: 500,
       },
       safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },

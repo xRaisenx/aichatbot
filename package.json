@@ -28,9 +28,13 @@
     "axios": "^1.6.2",
     "cross-env": "^7.0.3",
     "crypto-js": "^4.1.1",
+    "embla-carousel": "^8.6.0",
+    "embla-carousel-autoplay": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
     "esm": "^3.2.25",
     "express": "^4.18.2",
     "isomorphic-dompurify": "^2.24.0",
+    "lodash.debounce": "^4.0.8",
     "next": "^15.3.1",
     "node-fetch": "^2.6.7",
     "pino": "^9.6.0",
@@ -39,7 +43,7 @@
     "react-icons": "^5.5.0",
     "redis": "^5.0.1",
     "uuid": "^11.1.0",
-    "vercel": "^41.7.4"
+    "vercel": "^41.0.2"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.0.0",

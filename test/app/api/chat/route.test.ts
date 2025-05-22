@@ -5,7 +5,7 @@ import fs from 'fs';
 import { NextRequest } from 'next/server';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { POST } from '../../../../app/api/chat/route.ts';
+import { POST } from '../../../../app/api/chat/route.complex.dynamic.js';
 
 // Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);

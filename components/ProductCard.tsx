@@ -1,6 +1,8 @@
 // components/ProductCard.tsx
 import Image from 'next/image';
-import styles from '../styles/ChatInterface.module.css';
+// --- UPDATED IMPORT ---
+import styles from '../styles/ProductCard.module.css'; // Import styles from the new dedicated module
+// --- END UPDATED IMPORT ---
 
 interface ProductCardProps {
   title: string;
@@ -9,7 +11,9 @@ interface ProductCardProps {
   image: string | null;
   landing_page: string;
   matches?: string;
-  onAddToCart?: (productId: string) => void; // Optional prop as in original
+  // --- UPDATED PROP TYPE ---
+  onAddToCart?: (productId: string, productTitle: string) => Promise<void>; // Updated signature to match async
+  // --- END UPDATED PROP TYPE ---
   productId?: string; // Optional prop as in original
   availableForSale?: boolean;
   quantityAvailable?: number;
@@ -54,9 +58,11 @@ export function ProductCard({
         />
       )}
       <div className={styles.productInfo}>
-        <h3 className={styles.productTitle} style={{ fontSize: '0.9rem' }}>{title}</h3>
+        {/* Removed inline styles, use CSS module */}
+        <h3 className={styles.productTitle}>{title}</h3>
         <p className={styles.productDescription}>{description}</p>
-        <p className={styles.productPrice} style={{ fontSize: '1rem' }}>${price.toFixed(2)}</p>
+        {/* Removed inline styles, use CSS module */}
+        <p className={styles.productPrice}>${price.toFixed(2)}</p>
         {availableForSale === false && (
           <p className={styles.outOfStock}>Out of Stock</p>
         )}
@@ -68,13 +74,19 @@ export function ProductCard({
             href={landing_page}
             target="_blank"
             rel="noopener noreferrer"
-            className={`${styles.addToCartButton} ${styles.viewProductPink}`}
+            // --- UPDATED CLASS NAMES ---
+            className={`${styles.productActionButton} ${styles.viewProductButton}`}
+            // --- END UPDATED CLASS NAMES ---
           >
             View Product
           </a>
           <button
-            className={styles.addToCartButton}
-            onClick={() => productId && onAddToCart && onAddToCart(productId)}
+            // --- UPDATED CLASS NAME ---
+            className={styles.productActionButton}
+            // --- END UPDATED CLASS NAME ---
+            // --- UPDATED CALL SITE ---
+            onClick={() => productId && onAddToCart && onAddToCart(productId, title)} // Pass title
+            // --- END UPDATED CALL SITE ---
             disabled={!productId || !onAddToCart || availableForSale === false}
           >
             Add to Cart

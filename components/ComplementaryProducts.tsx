@@ -2,37 +2,28 @@
 'use client';
 
 import { ProductCardResponse } from '../lib/types'; // Import the interface
-import { ProductCard } from './ProductCard'; // Import ProductCard to potentially reuse
+// Removed import of ProductCard as it's now used inside ProductCarousel
+import { ProductCarousel } from './ProductCarousel'; // Import the new ProductCarousel component
 
 interface ComplementaryProductsProps {
   products: ProductCardResponse[];
+  onAddToCart: (variantId: string, productTitle: string) => Promise<void>; // Added onAddToCart prop
 }
 
-export function ComplementaryProducts({ products }: ComplementaryProductsProps) {
+export function ComplementaryProducts({ products, onAddToCart }: ComplementaryProductsProps) {
   if (!products || products.length === 0) {
     return null; // Don't render if no complementary products
   }
 
+  // If there's only one complementary product, maybe render it directly?
+  // Or always use the carousel for consistency with multiple products.
+  // Let's use the carousel if there's at least one product in the list.
+
   return (
     <div className="complementary-products-container border-t border-border-light dark:border-border-dark pt-3 mt-3">
       <h3 className="text-lg font-semibold mb-2">Suggested Products</h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Products will appear here once suggested.</p> {/* Added placeholder text */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {products.map((product, index) => (
-          // Can reuse ProductCard for displaying complementary products
-          <ProductCard
-            key={index}
-            title={product.title}
-            description={product.description}
-            price={product.price}
-            image={product.image}
-            landing_page={product.landing_page}
-            productId={product.variantId} // Pass variantId as productId
-            onAddToCart={() => {}} // Add empty function as placeholder for cart functionality
-            // Pass other relevant props if needed
-          />
-        ))}
-      </div>
+      {/* Render the ProductCarousel with the products */}
+      <ProductCarousel products={products} onAddToCart={onAddToCart} />
     </div>
   );
 }
