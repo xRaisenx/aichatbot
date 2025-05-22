@@ -13,10 +13,10 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
 const generationConfig = {
-  temperature: 0.5, // Adjusted for high creativity within valid range
+  temperature: 0.2, // Adjusted for high creativity within valid range
   topK: 1,
   topP: 0.80, // User's requested topP
-  maxOutputTokens: 2048,
+  maxOutputTokens: 150,
 };
 
 const safetySettings = [
